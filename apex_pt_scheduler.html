@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Apex Physical Therapy — AI Scheduler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F7F6F3;
+  --bg2: #EFEDE8;
+  --bg3: #E5E2DA;
+  --surface: #FFFFFF;
+  --border: rgba(0,0,0,0.09);
+  --border2: rgba(0,0,0,0.15);
+  --text: #1A1916;
+  --text2: #6B6860;
+  --text3: #A09D97;
+  --blue: #185FA5;
+  --blue-light: #E6F1FB;
+  --blue-mid: #B5D4F4;
+  --green: #3B6D11;
+  --green-light: #EAF3DE;
+  --green-mid: #C0DD97;
+  --amber: #854F0B;
+  --amber-light: #FAEEDA;
+  --red: #A32D2D;
+  --red-light: #FCEBEB;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
+
+/* App shell */
+#shell { display: grid; grid-template-columns: 340px 1fr; height: 100vh; overflow: hidden; }
+
+/* API gate */
+#key-gate {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; z-index: 200;
+}
+#key-card {
+  background: var(--surface); border: 0.5px solid var(--border2);
+  border-radius: var(--radius); padding: 32px; width: 400px;
+  box-shadow: var(--shadow-md);
+}
+#key-card h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+#key-card .clinic-name { font-size: 13px; color: var(--text2); margin-bottom: 20px; font-family: 'DM Mono', monospace; letter-spacing: 0.03em; }
+#key-card p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 16px; }
+#key-row { display: flex; gap: 8px; }
+#api-key-input {
+  flex: 1; font-size: 13px; padding: 9px 12px;
+  border-radius: var(--radius-sm); border: 0.5px solid var(--border2);
+  background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace;
+}
+#api-key-input:focus { outline: none; border-color: var(--blue); }
+#key-save-btn {
+  padding: 9px 18px; border-radius: var(--radius-sm); background: var(--blue);
+  color: #fff; border: none; font-size: 13px; font-weight: 500; cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+}
+#key-save-btn:hover { background: #0C447C; }
+#key-note { font-size: 11px; color: var(--text3); margin-top: 10px; }
+
+/* Phone panel */
+#phone-panel {
+  background: var(--surface); border-right: 0.5px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#phone-header {
+  padding: 16px; border-bottom: 0.5px solid var(--border);
+  background: var(--surface);
+}
+.clinic-tag { font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; font-family: 'DM Mono', monospace; }
+.clinic-title { font-size: 16px; font-weight: 500; color: var(--text); margin-top: 3px; }
+#key-indicator { font-size: 11px; color: var(--green); margin-top: 5px; display: flex; align-items: center; gap: 4px; }
+#call-status { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+#status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); transition: background .3s; }
+#status-dot.active { background: #639922; }
+#status-dot.ringing { background: #BA7517; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+#status-label { font-size: 12px; color: var(--text2); }
+
+#patient-banner {
+  display: none; margin: 10px 14px 0;
+  padding: 9px 11px; border-radius: var(--radius-sm);
+  background: var(--green-light); border: 0.5px solid #9FCC55;
+}
+#patient-banner-name { font-size: 12px; font-weight: 500; color: var(--green); }
+#patient-banner-detail { font-size: 11px; color: #4A8A16; margin-top: 2px; }
+
+#messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  scroll-behavior: smooth;
+}
+.msg { max-width: 88%; padding: 10px 13px; border-radius: 14px; font-size: 13px; line-height: 1.55; }
+.msg.ai {
+  background: var(--bg); border: 0.5px solid var(--border);
+  color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px;
+}
+.msg.user {
+  background: var(--blue); color: var(--blue-light);
+  align-self: flex-end; border-bottom-right-radius: 4px;
+}
+.msg.system {
+  background: none; border: none; font-size: 11px; color: var(--text3);
+  align-self: center; padding: 2px 0; font-style: italic;
+}
+.slot-options { align-self: flex-start; max-width: 94%; display: flex; flex-direction: column; gap: 5px; }
+.slot-option-btn {
+  padding: 8px 12px; border-radius: 9px; border: 0.5px solid var(--border2);
+  background: var(--surface); color: var(--text); font-size: 12px; font-family: 'DM Sans', sans-serif;
+  cursor: pointer; text-align: left; display: flex; align-items: center; gap: 7px;
+  transition: background .15s;
+}
+.slot-option-btn:hover { background: var(--bg2); }
+.slot-badge { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 20px; background: var(--blue-mid); color: #0C447C; white-space: nowrap; }
+.cancel-badge { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 20px; background: var(--red-light); color: var(--red); white-space: nowrap; }
+
+#typing {
+  display: none; align-items: center; gap: 4px; padding: 10px 13px;
+  background: var(--bg); border: 0.5px solid var(--border);
+  border-radius: 14px; border-bottom-left-radius: 4px; align-self: flex-start;
+}
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); animation: bounce 1.2s infinite; }
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}
+
+#input-area {
+  padding: 12px; border-top: 0.5px solid var(--border);
+  background: var(--surface); display: flex; gap: 7px; align-items: flex-end;
+}
+#user-input {
+  flex: 1; resize: none; height: 38px; min-height: 38px; max-height: 100px;
+  font-size: 13px; padding: 8px 12px; border-radius: 19px;
+  border: 0.5px solid var(--border2); background: var(--bg);
+  color: var(--text); font-family: 'DM Sans', sans-serif; line-height: 1.4;
+}
+#user-input:focus { outline: none; border-color: var(--blue); }
+#send-btn {
+  width: 38px; height: 38px; border-radius: 50%; background: var(--blue);
+  border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: background .15s;
+}
+#send-btn:hover { background: #0C447C; }
+#call-btn-wrap { padding: 12px; border-top: 0.5px solid var(--border); }
+#call-btn {
+  width: 100%; padding: 10px; border-radius: 20px;
+  border: 0.5px solid var(--border2); background: var(--bg);
+  color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  font-family: 'DM Sans', sans-serif; transition: background .15s;
+}
+#call-btn:hover { background: var(--bg2); }
+#end-btn {
+  padding: 0 14px; height: 38px; border-radius: 19px; background: none;
+  border: 0.5px solid #E24B4A; color: var(--red); font-size: 12px;
+  cursor: pointer; flex-shrink: 0; font-family: 'DM Sans', sans-serif;
+}
+
+/* Calendar panel */
+#cal-panel { display: flex; flex-direction: column; overflow: hidden; position: relative; background: var(--bg); }
+#cal-header {
+  padding: 13px 16px; border-bottom: 0.5px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--surface); flex-wrap: wrap;
+}
+#cal-header h2 { font-size: 15px; font-weight: 500; }
+#cal-header-right { display: flex; align-items: center; gap: 8px; }
+#mode-toggle { display: flex; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); overflow: hidden; }
+.mode-btn { padding: 4px 11px; font-size: 11px; font-weight: 500; border: none; cursor: pointer; background: none; color: var(--text2); font-family: 'DM Sans', sans-serif; transition: background .15s; }
+.mode-btn.active { background: var(--blue); color: #fff; }
+#week-nav { display: flex; align-items: center; gap: 5px; }
+.nav-btn { width: 26px; height: 26px; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); background: none; cursor: pointer; color: var(--text2); font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background .15s; }
+.nav-btn:hover { background: var(--bg2); }
+#week-label { font-size: 11px; color: var(--text2); min-width: 120px; text-align: center; font-family: 'DM Mono', monospace; }
+
+#therapist-tabs {
+  display: flex; gap: 4px; padding: 8px 16px;
+  border-bottom: 0.5px solid var(--border); overflow-x: auto; align-items: center;
+  background: var(--surface);
+}
+.tab { padding: 4px 12px; border-radius: 20px; font-size: 11px; cursor: pointer; border: 0.5px solid var(--border2); white-space: nowrap; font-weight: 500; color: var(--text2); background: none; font-family: 'DM Sans', sans-serif; transition: all .15s; }
+.tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+#edit-hint { font-size: 10px; color: var(--text3); margin-left: auto; display: none; }
+
+#cal-grid-wrap { flex: 1; overflow-y: auto; padding: 0 16px 16px; background: var(--bg); }
+#cal-grid { display: grid; margin-top: 10px; }
+.day-col-header { font-size: 11px; font-weight: 500; color: var(--text2); text-align: center; padding: 6px 3px; border-bottom: 0.5px solid var(--border); }
+.day-col-header span { display: block; font-size: 17px; font-weight: 500; color: var(--text); }
+.time-label { font-size: 10px; color: var(--text3); text-align: right; padding-right: 7px; line-height: 1; padding-top: 3px; font-family: 'DM Mono', monospace; }
+.cal-cell { border-left: 0.5px solid var(--border); border-bottom: 0.5px solid var(--border); min-height: 38px; position: relative; background: var(--surface); }
+.cal-cell:nth-child(even) { }
+.cal-cell.highlight { background: var(--green-light); cursor: pointer; }
+.cal-cell.highlight:hover { background: var(--green-mid); }
+.cal-cell.outside-hours { background: var(--bg2); }
+.cal-cell.blocked { background: repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(0,0,0,.03) 5px,rgba(0,0,0,.03) 10px); }
+.appt {
+  position: absolute; left: 2px; right: 2px; top: 2px;
+  border-radius: 5px; padding: 3px 6px; font-size: 10px; line-height: 1.3;
+  overflow: hidden; z-index: 2; cursor: pointer; transition: filter .15s;
+}
+.appt:hover { filter: brightness(.93); }
+.appt.eval { background: var(--blue-mid); color: #0C447C; }
+.appt.followup { background: #9FE1CB; color: #085041; }
+.appt.dry { background: #F4C0D1; color: #72243E; }
+.appt.sports { background: #FAC775; color: #633806; }
+.appt.surgical { background: #CECBF6; color: #3C3489; }
+.appt-name { font-weight: 500; }
+.block-pill {
+  position: absolute; left: 2px; right: 2px; top: 2px; border-radius: 5px;
+  padding: 2px 6px; font-size: 10px; font-weight: 500; z-index: 2;
+  overflow: hidden; display: flex; align-items: center; justify-content: space-between;
+}
+.block-pill.lunch { background: #D3D1C7; color: #444441; }
+.block-pill.admin { background: #CECBF6; color: #3C3489; }
+.block-pill.off { background: #F4C0D1; color: #72243E; }
+.block-pill.custom { background: #FAC775; color: #633806; }
+.block-remove { cursor: pointer; font-size: 11px; opacity: .6; }
+.block-remove:hover { opacity: 1; }
+
+#legend {
+  display: flex; gap: 8px; padding: 8px 16px;
+  border-top: 0.5px solid var(--border); flex-wrap: wrap;
+  background: var(--surface);
+}
+.leg-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text2); }
+.leg-dot { width: 9px; height: 9px; border-radius: 2px; }
+
+/* Patient Sidebar */
+#patient-sidebar {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 290px;
+  background: var(--surface); border-left: 0.5px solid var(--border);
+  display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform .22s ease;
+  z-index: 10; box-shadow: var(--shadow-md);
+}
+#patient-sidebar.open { transform: translateX(0); }
+#sidebar-header { padding: 14px 14px 12px; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+#sidebar-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--blue-mid); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; color: #0C447C; flex-shrink: 0; font-family: 'DM Mono', monospace; }
+#sidebar-name-block { flex: 1; }
+#sidebar-patient-name { font-size: 14px; font-weight: 500; }
+#sidebar-patient-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+#sidebar-close { background: none; border: none; cursor: pointer; color: var(--text2); font-size: 17px; line-height: 1; }
+#sidebar-close:hover { color: var(--text); }
+#sidebar-tabs { display: flex; border-bottom: 0.5px solid var(--border); }
+.stab { flex: 1; padding: 8px 0; font-size: 11px; font-weight: 500; text-align: center; cursor: pointer; border: none; background: none; color: var(--text2); border-bottom: 2px solid transparent; font-family: 'DM Sans', sans-serif; transition: color .15s; }
+.stab.active { color: var(--blue); border-bottom-color: var(--blue); }
+#sidebar-body { flex: 1; overflow-y: auto; padding: 14px; }
+.s-section { margin-bottom: 16px; }
+.s-label { font-size: 10px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 7px; font-family: 'DM Mono', monospace; }
+.s-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 0.5px solid var(--border); font-size: 12px; }
+.s-row:last-child { border-bottom: none; }
+.s-key { color: var(--text2); }
+.s-val { color: var(--text); font-weight: 500; text-align: right; max-width: 58%; }
+.s-pill { font-size: 10px; font-weight: 500; padding: 2px 9px; border-radius: 20px; }
+.s-pill.green { background: var(--green-light); color: var(--green); }
+.s-pill.amber { background: var(--amber-light); color: var(--amber); }
+.s-pill.red { background: var(--red-light); color: var(--red); }
+.s-pill.blue { background: var(--blue-light); color: var(--blue); }
+.ins-edit { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.ins-edit select, .ins-edit input {
+  font-size: 12px; padding: 6px 9px; border-radius: var(--radius-sm);
+  border: 0.5px solid var(--border2); background: var(--bg);
+  color: var(--text); font-family: 'DM Sans', sans-serif;
+}
+.ins-edit select:focus, .ins-edit input:focus { outline: none; border-color: var(--blue); }
+.ins-save { padding: 6px 14px; border-radius: var(--radius-sm); background: var(--blue); color: #fff; border: none; font-size: 12px; font-weight: 500; cursor: pointer; align-self: flex-end; font-family: 'DM Sans', sans-serif; }
+.timeline-item { display: flex; gap: 10px; margin-bottom: 14px; }
+.tl-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
+.tl-dot.appt { background: var(--blue); }
+.tl-dot.cancel { background: #E24B4A; }
+.tl-dot.new { background: #639922; }
+.tl-line { width: 1px; background: var(--border); margin: 13px 0 0 4px; }
+.tl-title { font-size: 12px; font-weight: 500; color: var(--text); }
+.tl-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.upcoming-card { padding: 8px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border); margin-bottom: 6px; background: var(--bg); }
+.upcoming-top { display: flex; justify-content: space-between; align-items: center; }
+.upcoming-type { font-size: 12px; font-weight: 500; }
+.upcoming-therapist { font-size: 10px; color: var(--text2); }
+.upcoming-time { font-size: 11px; color: var(--text2); margin-top: 2px; font-family: 'DM Mono', monospace; }
+.notes-area { width: 100%; font-size: 12px; padding: 8px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; line-height: 1.55; resize: vertical; min-height: 90px; }
+.notes-area:focus { outline: none; border-color: var(--blue); }
+.notes-save { margin-top: 7px; padding: 5px 14px; border-radius: var(--radius-sm); background: var(--blue); color: #fff; border: none; font-size: 11px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+
+/* Block modal */
+#modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 100; align-items: center; justify-content: center; }
+#modal-overlay.open { display: flex; }
+#modal { background: var(--surface); border-radius: var(--radius); border: 0.5px solid var(--border2); padding: 20px; width: 300px; display: flex; flex-direction: column; gap: 13px; box-shadow: var(--shadow-md); }
+#modal h3 { font-size: 14px; font-weight: 500; }
+#modal-meta { font-size: 11px; color: var(--text2); margin-top: -7px; font-family: 'DM Mono', monospace; }
+.field-label { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+.field-group { display: flex; flex-direction: column; }
+#modal select, #modal input[type=text] { font-size: 12px; padding: 7px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+.recur-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+#modal-duration { display: flex; gap: 5px; flex-wrap: wrap; }
+.dur-btn { padding: 4px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .15s; }
+.dur-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+#modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.btn-cancel-modal { padding: 7px 14px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: none; color: var(--text2); font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.btn-save-modal { padding: 7px 14px; border-radius: var(--radius-sm); border: none; background: var(--blue); color: #fff; font-size: 12px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="key-gate">
+  <div id="key-card">
+    <div class="clinic-tag">Apex Physical Therapy</div>
+    <h1>AI Scheduler</h1>
+    <p>Connect your Anthropic API key to activate Aria. Your key stays in memory only and is never stored.</p>
+    <div id="key-row">
+      <input id="api-key-input" type="password" placeholder="sk-ant-..." spellcheck="false" autocomplete="off"/>
+      <button id="key-save-btn" onclick="saveKey()">Connect</button>
+    </div>
+    <div id="key-note">Get a key at console.anthropic.com &rarr; API Keys</div>
+    <div style="margin-top:14px;padding:12px;border-radius:8px;background:var(--bg2);border:0.5px solid var(--border2);">
+      <div style="font-size:11px;font-weight:500;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;">Running in Edge or Chrome?</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.6;">
+        Browsers block direct API calls from local files. Run the included <code style="background:var(--bg3);padding:1px 5px;border-radius:3px;font-family:monospace;">server.js</code> file instead:<br/>
+        <span style="font-family:monospace;font-size:11px;display:block;margin-top:6px;color:var(--text);">node server.js</span>
+        Then open <span style="font-family:monospace;font-size:11px;color:var(--blue);">http://localhost:3000</span> in your browser.
+        Node.js is free at nodejs.org
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="shell">
+  <!-- Phone Panel -->
+  <div id="phone-panel">
+    <div id="phone-header">
+      <div class="clinic-tag">AI Receptionist</div>
+      <div class="clinic-title">Apex Physical Therapy</div>
+      <div id="key-indicator">&#10003; API key connected</div>
+      <div id="call-status">
+        <div id="status-dot"></div>
+        <span id="status-label">No active call</span>
+      </div>
+    </div>
+    <div id="patient-banner">
+      <div id="patient-banner-name"></div>
+      <div id="patient-banner-detail"></div>
+    </div>
+    <div id="messages"><div class="msg system">Start a simulated patient call below</div></div>
+    <div id="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <div id="call-btn-wrap">
+      <button id="call-btn" onclick="startCall()">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+        Simulate incoming call
+      </button>
+    </div>
+  </div>
+
+  <!-- Calendar Panel -->
+  <div id="cal-panel">
+    <div id="cal-header">
+      <h2>Schedule</h2>
+      <div id="cal-header-right">
+        <div id="mode-toggle">
+          <button class="mode-btn active" onclick="setMode('view',this)">View</button>
+          <button class="mode-btn" onclick="setMode('edit',this)">Edit availability</button>
+        </div>
+        <div id="week-nav">
+          <button class="nav-btn" onclick="shiftWeek(-1)">&#8249;</button>
+          <span id="week-label"></span>
+          <button class="nav-btn" onclick="shiftWeek(1)">&#8250;</button>
+        </div>
+      </div>
+    </div>
+    <div id="therapist-tabs">
+      <button class="tab active" onclick="selectTherapist(this,'All')">All</button>
+      <button class="tab" onclick="selectTherapist(this,'Dr. Smith')">Dr. Smith</button>
+      <button class="tab" onclick="selectTherapist(this,'Dr. Chen')">Dr. Chen</button>
+      <button class="tab" onclick="selectTherapist(this,'Dr. Patel')">Dr. Patel</button>
+      <span id="edit-hint">Click any open cell to block time</span>
+    </div>
+    <div id="cal-grid-wrap"><div id="cal-grid"></div></div>
+    <div id="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#B5D4F4"></div>Eval</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#9FE1CB"></div>Follow-up</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#F4C0D1"></div>Dry needling</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#FAC775"></div>Sports</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#CECBF6"></div>Post-surgical</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#EAF3DE;border:0.5px solid #639922"></div>Available</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#D3D1C7"></div>Blocked</div>
+    </div>
+
+    <!-- Patient Sidebar -->
+    <div id="patient-sidebar">
+      <div id="sidebar-header">
+        <div id="sidebar-avatar"></div>
+        <div id="sidebar-name-block">
+          <div id="sidebar-patient-name"></div>
+          <div id="sidebar-patient-sub"></div>
+        </div>
+        <button id="sidebar-close" onclick="closeSidebar()">&#10005;</button>
+      </div>
+      <div id="sidebar-tabs">
+        <button class="stab active" onclick="switchSTab('info',this)">Info</button>
+        <button class="stab" onclick="switchSTab('insurance',this)">Insurance</button>
+        <button class="stab" onclick="switchSTab('timeline',this)">Timeline</button>
+        <button class="stab" onclick="switchSTab('notes',this)">Notes</button>
+      </div>
+      <div id="sidebar-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Block Modal -->
+<div id="modal-overlay">
+  <div id="modal">
+    <h3 id="modal-title">Add availability block</h3>
+    <div id="modal-meta"></div>
+    <div class="field-group">
+      <div class="field-label">Block type</div>
+      <select id="block-type" onchange="onBlockTypeChange()">
+        <option value="lunch">Lunch break</option>
+        <option value="admin">Admin / charting</option>
+        <option value="off">Time off / vacation</option>
+        <option value="custom">Custom label</option>
+      </select>
+    </div>
+    <div class="field-group" id="custom-label-group" style="display:none">
+      <div class="field-label">Custom label</div>
+      <input type="text" id="custom-label" placeholder="e.g. Staff meeting"/>
+    </div>
+    <div class="field-group">
+      <div class="field-label">Therapist</div>
+      <select id="block-therapist">
+        <option>Dr. Smith</option><option>Dr. Chen</option><option>Dr. Patel</option>
+        <option value="All">All therapists</option>
+      </select>
+    </div>
+    <div class="field-group">
+      <div class="field-label">Duration</div>
+      <div id="modal-duration">
+        <button class="dur-btn active" onclick="selectDur(this,1)">30 min</button>
+        <button class="dur-btn" onclick="selectDur(this,2)">1 hr</button>
+        <button class="dur-btn" onclick="selectDur(this,3)">1.5 hr</button>
+        <button class="dur-btn" onclick="selectDur(this,4)">2 hr</button>
+        <button class="dur-btn" onclick="selectDur(this,16)">Full day</button>
+      </div>
+    </div>
+    <div class="recur-row">
+      <input type="checkbox" id="block-recurring"/>
+      <label for="block-recurring">Repeat every week on this day</label>
+    </div>
+    <div id="modal-actions">
+      <button class="btn-cancel-modal" onclick="closeModal()">Cancel</button>
+      <button class="btn-save-modal" onclick="saveBlock()">Save block</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let API_KEY='';
+function saveKey(){
+  const v=document.getElementById('api-key-input').value.trim();
+  if(!v.startsWith('sk-')){document.getElementById('api-key-input').style.borderColor='#E24B4A';return;}
+  API_KEY=v;
+  document.getElementById('key-gate').style.display='none';
+  renderCalendar();
+}
+document.getElementById('api-key-input').addEventListener('keydown',e=>{if(e.key==='Enter')saveKey();});
+
+const APPT_TYPES={'Initial evaluation':{duration:60,cls:'eval'},'Follow-up visit':{duration:30,cls:'followup'},'Dry needling':{duration:30,cls:'dry'},'Sports rehab':{duration:45,cls:'sports'},'Post-surgical rehab':{duration:60,cls:'surgical'}};
+const THERAPISTS=['Dr. Smith','Dr. Chen','Dr. Patel'];
+const DAYS=['Mon','Tue','Wed','Thu','Fri'];
+const HOURS=Array.from({length:18},(_,i)=>{const h=7+Math.floor(i/2);const m=i%2===0?'00':'30';return`${h}:${m}`;});
+const INS_TYPES=['Medicare','Medicaid','Private insurance','Workers\' comp','Self-pay'];
+
+let therapistHours={'Dr. Smith':[2,16],'Dr. Chen':[0,14],'Dr. Patel':[4,18]};
+let blocks=[
+  {therapist:'Dr. Smith',dayIdx:1,startSlot:6,durationSlots:2,type:'lunch',label:'Lunch',recurring:true},
+  {therapist:'Dr. Chen',dayIdx:3,startSlot:6,durationSlots:2,type:'lunch',label:'Lunch',recurring:true},
+  {therapist:'Dr. Patel',dayIdx:2,startSlot:6,durationSlots:2,type:'lunch',label:'Lunch',recurring:true},
+  {therapist:'Dr. Smith',dayIdx:4,startSlot:0,durationSlots:18,type:'off',label:'Vacation',recurring:false},
+  {therapist:'Dr. Chen',dayIdx:0,startSlot:10,durationSlots:2,type:'admin',label:'Admin',recurring:true},
+];
+let patients=[
+  {id:1,fullName:'James Reynolds',phone:'555-0101',email:'james@email.com',dob:'1985-04-12',visits:4,insurance:'Private insurance',insuranceId:'BCB-4421',referralStatus:'on file',referralDr:'Dr. Nguyen',notes:'Prefers morning appointments. Right knee patient.',timeline:[{type:'new',date:'Jan 10',desc:'New patient registered'},{type:'appt',date:'Jan 15',desc:'Initial evaluation — Dr. Smith'},{type:'appt',date:'Jan 22',desc:'Follow-up visit — Dr. Smith'},{type:'appt',date:'Feb 5',desc:'Follow-up visit — Dr. Smith'},{type:'appt',date:'Feb 19',desc:'Follow-up visit — Dr. Smith'}]},
+  {id:2,fullName:'Maria Lopez',phone:'555-0102',email:'maria@email.com',dob:'1990-07-22',visits:1,insurance:'Medicare',insuranceId:'MED-7731',referralStatus:'on file',referralDr:'Dr. Patel',notes:'',timeline:[{type:'new',date:'Mar 28',desc:'New patient registered'},{type:'appt',date:'Mar 31',desc:'Initial evaluation — Dr. Chen'}]},
+  {id:3,fullName:'Tom Burke',phone:'555-0103',email:'tom@email.com',dob:'1978-11-03',visits:7,insurance:'Workers\' comp',insuranceId:'WC-2209',referralStatus:'on file',referralDr:'Dr. Reyes',notes:'Work injury — lower back. Cleared for light exercise.',timeline:[{type:'new',date:'Nov 5',desc:'New patient registered'},{type:'appt',date:'Nov 12',desc:'Initial evaluation — Dr. Patel'},{type:'appt',date:'Nov 26',desc:'Sports rehab — Dr. Patel'},{type:'cancel',date:'Dec 24',desc:'Cancelled — holiday conflict'},{type:'appt',date:'Jan 7',desc:'Sports rehab — Dr. Patel'},{type:'appt',date:'Feb 4',desc:'Sports rehab — Dr. Patel'}]},
+  {id:4,fullName:'Sarah Kim',phone:'555-0104',email:'sarah@email.com',dob:'1995-02-18',visits:3,insurance:'Private insurance',insuranceId:'UHC-9902',referralStatus:'pending',referralDr:'',notes:'Awaiting referral from primary care. Neck & shoulder.',timeline:[{type:'new',date:'Feb 15',desc:'New patient registered'},{type:'appt',date:'Feb 20',desc:'Initial evaluation — Dr. Smith'},{type:'appt',date:'Mar 6',desc:'Dry needling — Dr. Smith'},{type:'appt',date:'Mar 20',desc:'Dry needling — Dr. Smith'}]},
+  {id:5,fullName:'Alex Martinez',phone:'555-0105',email:'alex@email.com',dob:'1972-09-30',visits:12,insurance:'Medicaid',insuranceId:'MCD-3310',referralStatus:'on file',referralDr:'Dr. Hasan',notes:'Post-surgical hip replacement. Excellent progress.',timeline:[{type:'new',date:'Sep 1',desc:'New patient registered'},{type:'appt',date:'Sep 8',desc:'Post-surgical rehab — Dr. Chen'},{type:'appt',date:'Oct 6',desc:'Post-surgical rehab — Dr. Chen'},{type:'cancel',date:'Nov 17',desc:'Cancelled — illness'},{type:'appt',date:'Dec 1',desc:'Post-surgical rehab — Dr. Chen'},{type:'appt',date:'Jan 26',desc:'Post-surgical rehab — Dr. Chen'},{type:'appt',date:'Feb 9',desc:'Post-surgical rehab — Dr. Chen'}]},
+];
+let appointments=[
+  {patientId:1,name:'James R.',type:'Follow-up visit',therapist:'Dr. Smith',dayIdx:0,timeSlot:4},
+  {patientId:2,name:'Maria L.',type:'Initial evaluation',therapist:'Dr. Chen',dayIdx:1,timeSlot:2},
+  {patientId:3,name:'Tom B.',type:'Sports rehab',therapist:'Dr. Patel',dayIdx:2,timeSlot:6},
+  {patientId:4,name:'Sarah K.',type:'Dry needling',therapist:'Dr. Smith',dayIdx:3,timeSlot:8},
+  {patientId:5,name:'Alex M.',type:'Post-surgical rehab',therapist:'Dr. Chen',dayIdx:4,timeSlot:3},
+];
+
+let weekOffset=0,activeTherapist='All',editMode=false;
+let conversation=[],callActive=false,pendingAppt={},highlightedSlots=[],recognizedPatient=null;
+let pendingModalCtx={},selectedDurSlots=1;
+let activeSidebarId=null,activeSTab='info';
+
+// Sidebar
+function openSidebar(pid){
+  activeSidebarId=pid;const p=patients.find(x=>x.id===pid);if(!p)return;
+  const init=p.fullName.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('sidebar-avatar').textContent=init;
+  document.getElementById('sidebar-patient-name').textContent=p.fullName;
+  const upc=appointments.filter(a=>a.patientId===pid).length;
+  document.getElementById('sidebar-patient-sub').textContent=`${p.visits} total visits · ${upc} upcoming`;
+  document.getElementById('patient-sidebar').classList.add('open');
+  document.querySelectorAll('.stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});
+  activeSTab='info'; renderSidebarTab('info',p);
+}
+function closeSidebar(){document.getElementById('patient-sidebar').classList.remove('open');activeSidebarId=null;}
+function switchSTab(tab,btn){
+  activeSTab=tab;document.querySelectorAll('.stab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  const p=patients.find(x=>x.id===activeSidebarId);if(p)renderSidebarTab(tab,p);
+}
+function renderSidebarTab(tab,p){
+  const body=document.getElementById('sidebar-body');body.innerHTML='';
+  if(tab==='info'){
+    const ua=appointments.filter(a=>a.patientId===p.id);
+    body.innerHTML=`<div class="s-section"><div class="s-label">Contact</div>
+      <div class="s-row"><span class="s-key">Phone</span><span class="s-val">${p.phone}</span></div>
+      <div class="s-row"><span class="s-key">Email</span><span class="s-val">${p.email}</span></div>
+      <div class="s-row"><span class="s-key">Date of birth</span><span class="s-val">${p.dob||'—'}</span></div>
+    </div>
+    <div class="s-section"><div class="s-label">Upcoming appointments</div>
+      ${ua.length===0?'<div style="font-size:12px;color:var(--text3);">None scheduled</div>':
+      ua.map(a=>`<div class="upcoming-card"><div class="upcoming-top"><span class="upcoming-type">${a.type}</span><span class="upcoming-therapist">${a.therapist}</span></div><div class="upcoming-time">${DAYS[a.dayIdx]} · ${HOURS[a.timeSlot]}</div></div>`).join('')}
+    </div>`;
+  } else if(tab==='insurance'){
+    const rp=p.referralStatus==='on file'?'green':p.referralStatus==='pending'?'amber':'red';
+    body.innerHTML=`<div class="s-section"><div class="s-label">Insurance</div>
+      <div class="s-row"><span class="s-key">Type</span><span class="s-val">${p.insurance||'—'}</span></div>
+      <div class="s-row"><span class="s-key">Policy #</span><span class="s-val">${p.insuranceId||'—'}</span></div>
+    </div>
+    <div class="s-section"><div class="s-label">Referral</div>
+      <div class="s-row"><span class="s-key">Status</span><span class="s-pill ${rp}">${p.referralStatus||'not collected'}</span></div>
+      <div class="s-row"><span class="s-key">Referring physician</span><span class="s-val">${p.referralDr||'—'}</span></div>
+    </div>
+    <div class="s-label">Edit</div>
+    <div class="ins-edit">
+      <select id="ins-type-sel">${INS_TYPES.map(t=>`<option${p.insurance===t?' selected':''}>${t}</option>`).join('')}</select>
+      <input type="text" id="ins-id-inp" placeholder="Policy / ID #" value="${p.insuranceId||''}"/>
+      <select id="ref-status-sel">
+        <option${p.referralStatus==='on file'?' selected':''}>on file</option>
+        <option${p.referralStatus==='pending'?' selected':''}>pending</option>
+        <option${p.referralStatus==='not collected'?' selected':''}>not collected</option>
+      </select>
+      <input type="text" id="ref-dr-inp" placeholder="Referring physician" value="${p.referralDr||''}"/>
+      <button class="ins-save" onclick="saveInsurance(${p.id})">Save changes</button>
+    </div>`;
+  } else if(tab==='timeline'){
+    const tl=[...p.timeline].reverse();
+    body.innerHTML=tl.map((item,i)=>`<div class="timeline-item">
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div class="tl-dot ${item.type}"></div>
+        ${i<tl.length-1?'<div class="tl-line" style="height:28px;"></div>':''}
+      </div>
+      <div><div class="tl-title">${item.desc}</div><div class="tl-meta">${item.date}</div></div>
+    </div>`).join('');
+  } else if(tab==='notes'){
+    body.innerHTML=`<div class="s-label">Clinical notes</div>
+      <textarea class="notes-area" id="notes-inp" placeholder="Add notes...">${p.notes||''}</textarea>
+      <button class="notes-save" onclick="saveNotes(${p.id})">Save notes</button>`;
+  }
+}
+function saveInsurance(id){const p=patients.find(x=>x.id===id);if(!p)return;p.insurance=document.getElementById('ins-type-sel').value;p.insuranceId=document.getElementById('ins-id-inp').value.trim();p.referralStatus=document.getElementById('ref-status-sel').value;p.referralDr=document.getElementById('ref-dr-inp').value.trim();renderSidebarTab('insurance',p);}
+function saveNotes(id){const p=patients.find(x=>x.id===id);if(p)p.notes=document.getElementById('notes-inp').value;}
+
+// Calendar
+function setMode(mode,btn){editMode=mode==='edit';document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('edit-hint').style.display=editMode?'inline':'none';renderCalendar();}
+function isSlotBlocked(t,di,si){return blocks.some(b=>(b.therapist===t||b.therapist==='All')&&b.dayIdx===di&&si>=b.startSlot&&si<b.startSlot+b.durationSlots);}
+function isOutsideHours(t,si){if(t==='All')return false;const[s,e]=therapistHours[t]||[0,18];return si<s||si>=e;}
+function slotsOccupied(a){const n=Math.ceil(APPT_TYPES[a.type].duration/30);return Array.from({length:n},(_,i)=>a.timeSlot+i);}
+function isConflict(t,di,ss,type){const needed=Math.ceil(APPT_TYPES[type].duration/30);for(let s=ss;s<ss+needed;s++){if(isSlotBlocked(t,di,s)||isOutsideHours(t,s)||appointments.find(a=>a.therapist===t&&a.dayIdx===di&&slotsOccupied(a).includes(s)))return true;}return ss+needed>18;}
+function findAvailableSlots(t,type,count=4){const res=[];const cands=(!t||t==='Any')?THERAPISTS:[t];for(let di=0;di<5&&res.length<count;di++)for(let ti=0;ti<18&&res.length<count;ti++)for(const th of cands)if(!isConflict(th,di,ti,type)){res.push({therapist:th,dayIdx:di,timeSlot:ti});if(res.length>=count)break;}return res;}
+function slotLabel(slot){const dates=getWeekDates(),d=dates[slot.dayIdx];const[h,m]=HOURS[slot.timeSlot].split(':').map(Number);const ampm=h>=12?'pm':'am',h12=h>12?h-12:h;return`${d.label} ${d.month} ${d.date}, ${h12}:${m===0?'00':m}${ampm} — ${slot.therapist}`;}
+function getWeekDates(){const now=new Date(),day=now.getDay(),diff=day===0?-6:1-day,mon=new Date(now);mon.setDate(now.getDate()+diff+weekOffset*7);return DAYS.map((d,i)=>{const dt=new Date(mon);dt.setDate(mon.getDate()+i);return{label:d,date:dt.getDate(),month:dt.toLocaleString('default',{month:'short'})};});}
+function shiftWeek(d){weekOffset+=d;renderCalendar();}
+function selectTherapist(el,t){document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));el.classList.add('active');activeTherapist=t;renderCalendar();}
+
+function renderCalendar(){
+  const dates=getWeekDates();
+  document.getElementById('week-label').textContent=`${dates[0].month} ${dates[0].date} – ${dates[4].month} ${dates[4].date}`;
+  const grid=document.getElementById('cal-grid');
+  grid.style.gridTemplateColumns='44px '+DAYS.map(()=>'1fr').join(' ');
+  grid.innerHTML='';
+  grid.appendChild(document.createElement('div'));
+  dates.forEach(d=>{const h=document.createElement('div');h.className='day-col-header';h.innerHTML=`${d.label}<span>${d.date}</span>`;grid.appendChild(h);});
+  HOURS.forEach((time,ti)=>{
+    const tl=document.createElement('div');tl.className='time-label';tl.textContent=ti%2===0?time:'';grid.appendChild(tl);
+    DAYS.forEach((_,di)=>{
+      const cell=document.createElement('div');cell.className='cal-cell';
+      const tlist=activeTherapist==='All'?THERAPISTS:[activeTherapist];
+      const hl=highlightedSlots.find(s=>s.dayIdx===di&&s.timeSlot===ti);
+      if(hl){cell.classList.add('highlight');cell.onclick=()=>bookHighlightedSlot(hl);}
+      if(activeTherapist!=='All'&&isOutsideHours(activeTherapist,ti))cell.classList.add('outside-hours');
+      tlist.forEach(t=>{
+        const block=blocks.find(b=>(b.therapist===t||b.therapist==='All')&&b.dayIdx===di&&b.startSlot===ti);
+        if(block){const pill=document.createElement('div');pill.className=`block-pill ${block.type}`;pill.style.height=`${block.durationSlots*38-4}px`;pill.innerHTML=`<span>${block.label}</span>${editMode?`<span class="block-remove" onclick="removeBlock(event,'${t}',${di},${ti})">&#10005;</span>`:''}`;cell.appendChild(pill);cell.classList.add('blocked');}
+      });
+      appointments.filter(a=>a.dayIdx===di&&a.timeSlot===ti&&(activeTherapist==='All'||a.therapist===activeTherapist)).forEach(a=>{
+        const div=document.createElement('div');const info=APPT_TYPES[a.type];
+        div.className=`appt ${info.cls}`;div.style.height=`${(info.duration/30)*38-4}px`;
+        div.innerHTML=`<div class="appt-name">${a.name}</div><div style="opacity:.8;font-size:9px;">${a.type}</div>`;
+        div.onclick=e=>{e.stopPropagation();if(a.patientId)openSidebar(a.patientId);};
+        cell.appendChild(div);
+      });
+      if(editMode&&!cell.classList.contains('blocked')&&!cell.classList.contains('outside-hours')&&!hl){cell.style.cursor='pointer';cell.onclick=()=>openModal(activeTherapist==='All'?'Dr. Smith':activeTherapist,di,ti);}
+      grid.appendChild(cell);
+    });
+  });
+}
+
+// Block modal
+function openModal(therapist,dayIdx,timeSlot){
+  pendingModalCtx={therapist,dayIdx,timeSlot};
+  document.getElementById('block-type').value='lunch';document.getElementById('block-therapist').value=therapist;
+  document.getElementById('custom-label-group').style.display='none';document.getElementById('custom-label').value='';
+  document.getElementById('block-recurring').checked=true;selectedDurSlots=1;
+  document.querySelectorAll('.dur-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+  const dates=getWeekDates(),d=dates[dayIdx];const[h,m]=HOURS[timeSlot].split(':').map(Number);const ampm=h>=12?'pm':'am',h12=h>12?h-12:h;
+  document.getElementById('modal-meta').textContent=`${therapist} · ${d.label} ${d.month} ${d.date} at ${h12}:${m===0?'00':m}${ampm}`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');}
+function onBlockTypeChange(){const t=document.getElementById('block-type').value;document.getElementById('custom-label-group').style.display=t==='custom'?'flex':'none';document.getElementById('block-recurring').checked=t!=='off';}
+function selectDur(btn,slots){selectedDurSlots=slots;document.querySelectorAll('.dur-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function saveBlock(){
+  const type=document.getElementById('block-type').value,therapist=document.getElementById('block-therapist').value,recurring=document.getElementById('block-recurring').checked,customLabel=document.getElementById('custom-label').value.trim();
+  const{dayIdx,timeSlot}=pendingModalCtx;const labelMap={lunch:'Lunch',admin:'Admin',off:'Time off',custom:customLabel||'Block'};
+  blocks.push({therapist,dayIdx,startSlot:timeSlot,durationSlots:selectedDurSlots,type,label:labelMap[type],recurring});closeModal();renderCalendar();
+}
+function removeBlock(e,therapist,dayIdx,startSlot){e.stopPropagation();const idx=blocks.findIndex(b=>(b.therapist===therapist||b.therapist==='All')&&b.dayIdx===dayIdx&&b.startSlot===startSlot);if(idx>-1){blocks.splice(idx,1);renderCalendar();}}
+document.getElementById('modal-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('modal-overlay'))closeModal();});
+
+// Call / Aria
+function findPatientByName(name){if(!name)return null;const n=name.toLowerCase().trim();return patients.find(p=>{const full=p.fullName.toLowerCase();return full.includes(n)||full.split(' ').some(pt=>pt.startsWith(n.split(' ')[0]));});}
+function getPatientAppts(id){return appointments.filter(a=>a.patientId===id);}
+function patientSnapshot(){return patients.map(p=>{const appts=getPatientAppts(p.id).map(a=>`${DAYS[a.dayIdx]} ${HOURS[a.timeSlot]} w/ ${a.therapist} (${a.type})`).join(', ');return`ID${p.id}: ${p.fullName} | ${p.phone} | ${p.email} | visits:${p.visits} | ins:${p.insurance||'unknown'} | insId:${p.insuranceId||'?'} | referral:${p.referralStatus||'not collected'} | refDr:${p.referralDr||'?'} | upcoming:${appts||'none'}`;}).join('\n');}
+function blocksSnap(){return blocks.map(b=>`${b.therapist}|${DAYS[b.dayIdx]}|slots${b.startSlot}-${b.startSlot+b.durationSlots}|${b.label}`).join('\n')||'None';}
+function hoursSnap(){return THERAPISTS.map(t=>{const[s,e]=therapistHours[t];return`${t}:${HOURS[s]}–${HOURS[Math.min(e,17)]}`;}).join(', ');}
+function showPatientBanner(p){const appts=getPatientAppts(p.id);document.getElementById('patient-banner-name').textContent=`Returning: ${p.fullName}`;document.getElementById('patient-banner-detail').textContent=`${p.visits} visits · ins: ${p.insurance||'unknown'} · referral: ${p.referralStatus||'not collected'}`;document.getElementById('patient-banner').style.display='block';}
+function hidePatientBanner(){document.getElementById('patient-banner').style.display='none';}
+
+function bookHighlightedSlot(slot){
+  if(!pendingAppt.type)return;const label=slotLabel(slot);let patient=recognizedPatient;
+  if(!patient){patient={id:Date.now(),fullName:pendingAppt.fullName||'',phone:pendingAppt.phone||'',email:pendingAppt.email||'',dob:'',visits:0,insurance:pendingAppt.insurance||'',insuranceId:pendingAppt.insuranceId||'',referralStatus:pendingAppt.referralStatus||'not collected',referralDr:pendingAppt.referralDr||'',notes:'',timeline:[{type:'new',date:'Today',desc:'New patient registered'}]};patients.push(patient);}
+  else{if(pendingAppt.insurance)patient.insurance=pendingAppt.insurance;if(pendingAppt.insuranceId)patient.insuranceId=pendingAppt.insuranceId;if(pendingAppt.referralStatus)patient.referralStatus=pendingAppt.referralStatus;if(pendingAppt.referralDr)patient.referralDr=pendingAppt.referralDr;}
+  patient.visits+=1;const shortName=patient.fullName.split(' ')[0]+' '+(patient.fullName.split(' ')[1]||'')[0]+'.';
+  appointments.push({patientId:patient.id,name:shortName,type:pendingAppt.type,therapist:slot.therapist,dayIdx:slot.dayIdx,timeSlot:slot.timeSlot});
+  patient.timeline=patient.timeline||[];patient.timeline.push({type:'appt',date:'Today',desc:`${pendingAppt.type} — ${slot.therapist}`});
+  highlightedSlots=[];renderCalendar();addMsg('system',`Booked: ${label}`);
+  const msg=`BOOKING_CONFIRMED:${patient.fullName}|${pendingAppt.type}|${label}`;
+  conversation.push({role:'user',content:msg});pendingAppt={};continueCall(msg);
+}
+
+function showSlotOptions(slots){
+  const msgs=document.getElementById('messages'),typing=document.getElementById('typing');
+  if(msgs.contains(typing))msgs.removeChild(typing);
+  const wrap=document.createElement('div');wrap.className='slot-options';
+  slots.forEach(slot=>{const btn=document.createElement('button');btn.className='slot-option-btn';const dates=getWeekDates(),d=dates[slot.dayIdx];const[h,m]=HOURS[slot.timeSlot].split(':').map(Number);const ampm=h>=12?'pm':'am',h12=h>12?h-12:h;btn.innerHTML=`<span class="slot-badge">${d.label} ${d.month} ${d.date}</span> ${h12}:${m===0?'00':m}${ampm} with ${slot.therapist}`;btn.onclick=()=>{wrap.remove();bookHighlightedSlot(slot);};wrap.appendChild(btn);});
+  const more=document.createElement('button');more.className='slot-option-btn';more.style.color='var(--text3)';more.textContent='See other times...';more.onclick=()=>{wrap.remove();addMsg('user','Any other times?');conversation.push({role:'user',content:'FIND_MORE_SLOTS'});continueCall('FIND_MORE_SLOTS');};wrap.appendChild(more);
+  msgs.appendChild(wrap);if(callActive)msgs.appendChild(typing);msgs.scrollTop=msgs.scrollHeight;
+}
+
+function showCancelOptions(appts,patient){
+  const msgs=document.getElementById('messages'),typing=document.getElementById('typing');
+  if(msgs.contains(typing))msgs.removeChild(typing);
+  const wrap=document.createElement('div');wrap.className='slot-options';
+  const lbl=document.createElement('div');lbl.style.cssText='font-size:11px;color:var(--text3);padding:2px 4px;';lbl.textContent='Which appointment to cancel?';wrap.appendChild(lbl);
+  appts.forEach(appt=>{const btn=document.createElement('button');btn.className='slot-option-btn';btn.innerHTML=`<span class="cancel-badge">Cancel</span> ${DAYS[appt.dayIdx]} ${HOURS[appt.timeSlot]} · ${appt.type} w/ ${appt.therapist}`;btn.onclick=()=>{wrap.remove();const idx=appointments.indexOf(appt),cl=`${DAYS[appt.dayIdx]} ${HOURS[appt.timeSlot]} with ${appt.therapist} (${appt.type})`;appointments.splice(idx,1);patient.timeline=patient.timeline||[];patient.timeline.push({type:'cancel',date:'Today',desc:`Cancelled: ${appt.type} — ${appt.therapist}`});renderCalendar();addMsg('system',`Cancelled: ${cl}`);const msg=`CANCEL_CONFIRMED:${patient.fullName}|${cl}`;conversation.push({role:'user',content:msg});continueCall(msg);};wrap.appendChild(btn);});
+  msgs.appendChild(wrap);if(callActive)msgs.appendChild(typing);msgs.scrollTop=msgs.scrollHeight;
+}
+
+function startCall(){
+  if(callActive)return;callActive=true;pendingAppt={};highlightedSlots=[];conversation=[];recognizedPatient=null;hidePatientBanner();renderCalendar();
+  document.getElementById('status-dot').className='ringing';document.getElementById('status-label').textContent='Incoming call...';document.getElementById('messages').innerHTML='';addMsg('system','Call connected');
+  document.getElementById('call-btn-wrap').innerHTML=`
+    <div id="input-area">
+      <textarea id="user-input" placeholder="Type as the patient..." style="flex:1;resize:none;height:38px;min-height:38px;max-height:100px;font-size:13px;padding:8px 12px;border-radius:19px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.4;"></textarea>
+      <button id="send-btn" onclick="sendMsg()"><svg viewBox="0 0 24 24" width="15" height="15" fill="#fff"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+      <button id="end-btn" onclick="endCall()">End</button>
+    </div>`;
+  document.getElementById('user-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}});
+  setTimeout(()=>{document.getElementById('status-dot').className='active';document.getElementById('status-label').textContent='On call';const g="Thank you for calling Apex Physical Therapy! This is Aria. May I get your name please?";addMsg('ai',g);conversation.push({role:'assistant',content:g});},700);
+}
+
+function endCall(){
+  callActive=false;highlightedSlots=[];pendingAppt={};recognizedPatient=null;hidePatientBanner();renderCalendar();
+  document.getElementById('status-dot').className='';document.getElementById('status-dot').style.background='var(--text3)';document.getElementById('status-label').textContent='No active call';addMsg('system','Call ended');
+  document.getElementById('call-btn-wrap').innerHTML=`<button id="call-btn" onclick="startCall()"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Simulate incoming call</button>`;
+}
+
+function addMsg(role,text){const msgs=document.getElementById('messages'),typing=document.getElementById('typing');if(msgs.contains(typing))msgs.removeChild(typing);const d=document.createElement('div');d.className=`msg ${role}`;d.textContent=text;msgs.appendChild(d);if(callActive)msgs.appendChild(typing);msgs.scrollTop=msgs.scrollHeight;}
+function sendMsg(){const inp=document.getElementById('user-input'),text=inp.value.trim();if(!text)return;inp.value='';addMsg('user',text);conversation.push({role:'user',content:text});continueCall(text);}
+
+async function continueCall(userText){
+  const typing=document.getElementById('typing');typing.style.display='flex';document.getElementById('messages').scrollTop=99999;
+  const schedSnap=appointments.map(a=>`${DAYS[a.dayIdx]} slot${a.timeSlot}(${HOURS[a.timeSlot]})—${a.therapist}—${a.type}—pid:${a.patientId}`).join('\n');
+  const sys=`You are Aria, a warm professional AI scheduling receptionist at Apex Physical Therapy.
+
+== PATIENTS ==
+${patientSnapshot()}
+
+== SCHEDULE ==
+${schedSnap||'None.'}
+
+== THERAPIST HOURS == ${hoursSnap()}
+== BLOCKS == ${blocksSnap()}
+
+== APPOINTMENT TYPES ==
+Initial evaluation:60min | Follow-up visit:30min | Dry needling:30min | Sports rehab:45min | Post-surgical rehab:60min
+
+== THERAPISTS == Dr. Smith, Dr. Chen, Dr. Patel
+
+== BEHAVIOR ==
+1. Ask caller's name first.
+2. Look up in patient DB. If found, greet by first name warmly — do NOT re-ask for phone/email.
+3. Ask how you can help (book, cancel, reschedule).
+
+== BOOKING ==
+ALL appointment types require a physician referral. If referral is "not collected" or "pending", ask:
+  a. Insurance type (Medicare, Medicaid, Private insurance, Workers' comp, Self-pay)
+  b. Insurance policy/ID number (skip if self-pay)
+  c. Whether they have a physician referral and referring doctor's name
+For returning patients with referral "on file", skip these questions.
+When ready output: BOOKING_READY:[fullName]|[phone]|[email]|[type]|[therapist]|[insurance]|[insuranceId]|[referralStatus]|[referralDr]
+
+== CANCELLING == Output: SHOW_CANCEL_OPTIONS:[patientId]
+
+FIND_MORE_SLOTS → BOOKING_READY:RESEND|RESEND|RESEND|${pendingAppt.type||''}|${pendingAppt.rawTherapist||'Any'}|RESEND|RESEND|RESEND|RESEND
+SLOTS_OFFERED → tell patient to tap a time or ask for more.
+BOOKING_CONFIRMED → confirm warmly, mention reminder text 24h before, say goodbye.
+CANCEL_CONFIRMED → acknowledge, ask if they'd like to reschedule.
+
+Under 3 sentences. Warm and concise.`;
+
+  try{
+    // Use local proxy if running from server.js, otherwise try direct (works in Claude.ai sandbox)
+    const isLocal=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1';
+    const endpoint=isLocal?'/api/messages':'https://api.anthropic.com/v1/messages';
+    const fetchHeaders={'Content-Type':'application/json','x-api-key':API_KEY,'anthropic-version':'2023-06-01'};
+    if(!isLocal)fetchHeaders['anthropic-dangerous-direct-browser-access']='true';
+    const res=await fetch(endpoint,{method:'POST',headers:fetchHeaders,body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:700,system:sys,messages:conversation})});
+    const data=await res.json();typing.style.display='none';
+    if(data.error){addMsg('ai',`API error: ${data.error.message}`);return;}
+    const reply=data.content.map(b=>b.text||'').join('');
+
+    const cancelMatch=reply.match(/SHOW_CANCEL_OPTIONS:(\d+)/);
+    if(cancelMatch){const pid=parseInt(cancelMatch[1]),patient=patients.find(p=>p.id===pid),appts=appointments.filter(a=>a.patientId===pid);const vis=reply.replace(/SHOW_CANCEL_OPTIONS:\d+/,'').trim();if(vis){addMsg('ai',vis);conversation.push({role:'assistant',content:vis});}if(appts.length>0)showCancelOptions(appts,patient);else{const m=`I don't see any upcoming appointments for ${patient?.fullName||'you'}. Is there anything else I can help with?`;addMsg('ai',m);conversation.push({role:'assistant',content:m});}return;}
+
+    const bookMatch=reply.match(/BOOKING_READY:([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^\n]+)/);
+    if(bookMatch){
+      const[,name,phone,email,type,rawTherapist,insurance,insuranceId,referralStatus,referralDr]=bookMatch.map(x=>x?.trim());
+      if(name!=='RESEND'){const p=recognizedPatient;pendingAppt={fullName:p?p.fullName:name,phone:p?p.phone:phone,email:p?p.email:email,type,rawTherapist,insurance:insurance!=='RESEND'?insurance:pendingAppt.insurance,insuranceId:insuranceId!=='RESEND'?insuranceId:pendingAppt.insuranceId,referralStatus:referralStatus!=='RESEND'?referralStatus:pendingAppt.referralStatus,referralDr:referralDr!=='RESEND'?referralDr:pendingAppt.referralDr};}
+      const tf=(!pendingAppt.rawTherapist||pendingAppt.rawTherapist==='Any')?'Any':pendingAppt.rawTherapist;
+      const slots=findAvailableSlots(tf,pendingAppt.type,4);highlightedSlots=slots;renderCalendar();
+      const vis=reply.replace(/BOOKING_READY:[^\n]+/,'').trim();if(vis){addMsg('ai',vis);conversation.push({role:'assistant',content:vis});}
+      if(slots.length===0){const m="I'm sorry, there's no availability this week. Would you like to check next week?";addMsg('ai',m);conversation.push({role:'assistant',content:m});}
+      else{showSlotOptions(slots);const sd=slots.map(s=>slotLabel(s)).join('; ');conversation.push({role:'assistant',content:`Available: ${sd}`});conversation.push({role:'user',content:`SLOTS_OFFERED:${sd}`});await continueCall(`SLOTS_OFFERED:${sd}`);}
+      return;
+    }
+
+    if(!recognizedPatient&&conversation.length<=6){const umsgs=conversation.filter(m=>m.role==='user').map(m=>m.content).join(' ').toLowerCase();patients.forEach(p=>{if(!recognizedPatient){const[fn,ln]=(p.fullName.toLowerCase()).split(' ');if(umsgs.includes(fn)||(ln&&umsgs.includes(ln))){recognizedPatient=p;showPatientBanner(p);}}});}
+
+    addMsg('ai',reply);conversation.push({role:'assistant',content:reply});
+    if(userText.startsWith('BOOKING_CONFIRMED:'))setTimeout(endCall,3500);
+  }catch(e){typing.style.display='none';addMsg('ai',`Connection error: ${e.message}`);}
+}
+
+renderCalendar();
+</script>
+</body>
+</html>
