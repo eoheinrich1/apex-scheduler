@@ -1,0 +1,2489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Apex Physical Therapy — AI Scheduler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F7F6F3;
+  --bg2: #EFEDE8;
+  --bg3: #E5E2DA;
+  --surface: #FFFFFF;
+  --border: rgba(0,0,0,0.09);
+  --border2: rgba(0,0,0,0.15);
+  --text: #1A1916;
+  --text2: #6B6860;
+  --text3: #A09D97;
+  --blue: #185FA5;
+  --blue-light: #E6F1FB;
+  --blue-mid: #B5D4F4;
+  --green: #3B6D11;
+  --green-light: #EAF3DE;
+  --green-mid: #C0DD97;
+  --amber: #854F0B;
+  --amber-light: #FAEEDA;
+  --red: #A32D2D;
+  --red-light: #FCEBEB;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
+
+/* App shell */
+#shell { display: grid; grid-template-columns: 340px 1fr; height: 100vh; overflow: hidden; }
+
+/* API gate */
+#key-gate {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; z-index: 200;
+}
+#key-card {
+  background: var(--surface); border: 0.5px solid var(--border2);
+  border-radius: var(--radius); padding: 32px; width: 400px;
+  box-shadow: var(--shadow-md);
+}
+#key-card h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+#key-card .clinic-name { font-size: 13px; color: var(--text2); margin-bottom: 20px; font-family: 'DM Mono', monospace; letter-spacing: 0.03em; }
+#key-card p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 16px; }
+#key-row { display: flex; gap: 8px; }
+#api-key-input {
+  flex: 1; font-size: 13px; padding: 9px 12px;
+  border-radius: var(--radius-sm); border: 0.5px solid var(--border2);
+  background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace;
+}
+#api-key-input:focus { outline: none; border-color: var(--blue); }
+#key-save-btn {
+  padding: 9px 18px; border-radius: var(--radius-sm); background: var(--blue);
+  color: #fff; border: none; font-size: 13px; font-weight: 500; cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+}
+#key-save-btn:hover { background: #0C447C; }
+#key-note { font-size: 11px; color: var(--text3); margin-top: 10px; }
+
+/* Phone panel */
+#phone-panel {
+  background: var(--surface); border-right: 0.5px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#phone-header {
+  padding: 16px; border-bottom: 0.5px solid var(--border);
+  background: var(--surface);
+}
+.clinic-tag { font-size: 11px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; font-family: 'DM Mono', monospace; }
+.clinic-title { font-size: 16px; font-weight: 500; color: var(--text); margin-top: 3px; }
+#key-indicator { font-size: 11px; color: var(--green); margin-top: 5px; display: flex; align-items: center; gap: 4px; }
+#call-status { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+#status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); transition: background .3s; }
+#status-dot.active { background: #639922; }
+#status-dot.ringing { background: #BA7517; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+#status-label { font-size: 12px; color: var(--text2); }
+
+#patient-banner {
+  display: none; margin: 10px 14px 0;
+  padding: 9px 11px; border-radius: var(--radius-sm);
+  background: var(--green-light); border: 0.5px solid #9FCC55;
+}
+#patient-banner-name { font-size: 12px; font-weight: 500; color: var(--green); }
+#patient-banner-detail { font-size: 11px; color: #4A8A16; margin-top: 2px; }
+
+#messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  scroll-behavior: smooth;
+}
+.msg { max-width: 88%; padding: 10px 13px; border-radius: 14px; font-size: 13px; line-height: 1.55; }
+.msg.ai {
+  background: var(--bg); border: 0.5px solid var(--border);
+  color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px;
+}
+.msg.user {
+  background: var(--blue); color: var(--blue-light);
+  align-self: flex-end; border-bottom-right-radius: 4px;
+}
+.msg.system {
+  background: none; border: none; font-size: 11px; color: var(--text3);
+  align-self: center; padding: 2px 0; font-style: italic;
+}
+.slot-options { align-self: flex-start; max-width: 94%; display: flex; flex-direction: column; gap: 5px; }
+.slot-option-btn {
+  padding: 8px 12px; border-radius: 9px; border: 0.5px solid var(--border2);
+  background: var(--surface); color: var(--text); font-size: 12px; font-family: 'DM Sans', sans-serif;
+  cursor: pointer; text-align: left; display: flex; align-items: center; gap: 7px;
+  transition: background .15s;
+}
+.slot-option-btn:hover { background: var(--bg2); }
+.slot-badge { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 20px; background: var(--blue-mid); color: #0C447C; white-space: nowrap; }
+.cancel-badge { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 20px; background: var(--red-light); color: var(--red); white-space: nowrap; }
+
+#typing {
+  display: none; align-items: center; gap: 4px; padding: 10px 13px;
+  background: var(--bg); border: 0.5px solid var(--border);
+  border-radius: 14px; border-bottom-left-radius: 4px; align-self: flex-start;
+}
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); animation: bounce 1.2s infinite; }
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-5px)}}
+
+#input-area {
+  padding: 12px; border-top: 0.5px solid var(--border);
+  background: var(--surface); display: flex; gap: 7px; align-items: flex-end;
+}
+#user-input {
+  flex: 1; resize: none; height: 38px; min-height: 38px; max-height: 100px;
+  font-size: 13px; padding: 8px 12px; border-radius: 19px;
+  border: 0.5px solid var(--border2); background: var(--bg);
+  color: var(--text); font-family: 'DM Sans', sans-serif; line-height: 1.4;
+}
+#user-input:focus { outline: none; border-color: var(--blue); }
+#send-btn {
+  width: 38px; height: 38px; border-radius: 50%; background: var(--blue);
+  border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: background .15s;
+}
+#send-btn:hover { background: #0C447C; }
+#call-btn-wrap { padding: 12px; border-top: 0.5px solid var(--border); }
+#call-btn {
+  width: 100%; padding: 10px; border-radius: 20px;
+  border: 0.5px solid var(--border2); background: var(--bg);
+  color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  font-family: 'DM Sans', sans-serif; transition: background .15s;
+}
+#call-btn:hover { background: var(--bg2); }
+#end-btn {
+  padding: 0 14px; height: 38px; border-radius: 19px; background: none;
+  border: 0.5px solid #E24B4A; color: var(--red); font-size: 12px;
+  cursor: pointer; flex-shrink: 0; font-family: 'DM Sans', sans-serif;
+}
+
+/* Calendar panel */
+#cal-panel { display: flex; flex-direction: column; overflow: hidden; position: relative; background: var(--bg); }
+#cal-header {
+  padding: 13px 16px; border-bottom: 0.5px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--surface); flex-wrap: wrap;
+}
+#cal-header h2 { font-size: 15px; font-weight: 500; }
+#cal-header-right { display: flex; align-items: center; gap: 8px; }
+#mode-toggle { display: flex; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); overflow: hidden; }
+.mode-btn { padding: 4px 11px; font-size: 11px; font-weight: 500; border: none; cursor: pointer; background: none; color: var(--text2); font-family: 'DM Sans', sans-serif; transition: background .15s; }
+.mode-btn.active { background: var(--blue); color: #fff; }
+#week-nav { display: flex; align-items: center; gap: 5px; }
+.nav-btn { width: 26px; height: 26px; border: 0.5px solid var(--border2); border-radius: var(--radius-sm); background: none; cursor: pointer; color: var(--text2); font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background .15s; }
+.nav-btn:hover { background: var(--bg2); }
+#week-label { font-size: 11px; color: var(--text2); min-width: 120px; text-align: center; font-family: 'DM Mono', monospace; }
+
+#therapist-tabs {
+  display: flex; gap: 4px; padding: 8px 16px;
+  border-bottom: 0.5px solid var(--border); overflow-x: auto; align-items: center;
+  background: var(--surface);
+}
+.tab { padding: 4px 12px; border-radius: 20px; font-size: 11px; cursor: pointer; border: 0.5px solid var(--border2); white-space: nowrap; font-weight: 500; color: var(--text2); background: none; font-family: 'DM Sans', sans-serif; transition: all .15s; }
+.tab.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+#edit-hint { font-size: 10px; color: var(--text3); margin-left: auto; display: none; }
+
+#cal-grid-wrap { flex: 1; overflow-y: auto; padding: 0 16px 16px; background: var(--bg); }
+#cal-grid { display: grid; margin-top: 10px; }
+.day-col-header { font-size: 11px; font-weight: 500; color: var(--text2); text-align: center; padding: 6px 3px; border-bottom: 0.5px solid var(--border); }
+.day-col-header span { display: block; font-size: 17px; font-weight: 500; color: var(--text); }
+.time-label { font-size: 10px; color: var(--text3); text-align: right; padding-right: 7px; line-height: 1; padding-top: 3px; font-family: 'DM Mono', monospace; }
+.cal-cell { border-left: 0.5px solid var(--border); border-bottom: 0.5px solid var(--border); min-height: 38px; position: relative; background: var(--surface); }
+.cal-cell:nth-child(even) { }
+.cal-cell.highlight { background: var(--green-light); cursor: pointer; }
+.cal-cell.highlight:hover { background: var(--green-mid); }
+.cal-cell.outside-hours { background: var(--bg2); }
+.cal-cell.blocked { background: repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(0,0,0,.03) 5px,rgba(0,0,0,.03) 10px); }
+.appt {
+  position: absolute; left: 2px; right: 2px; top: 2px;
+  border-radius: 5px; padding: 3px 6px; font-size: 10px; line-height: 1.3;
+  overflow: hidden; z-index: 2; cursor: pointer; transition: filter .15s;
+}
+.appt:hover { filter: brightness(.93); }
+.appt.eval { background: var(--blue-mid); color: #0C447C; }
+.appt.followup { background: #9FE1CB; color: #085041; }
+.appt.dry { background: #F4C0D1; color: #72243E; }
+.appt.sports { background: #FAC775; color: #633806; }
+.appt.surgical { background: #CECBF6; color: #3C3489; }
+.appt-name { font-weight: 500; }
+.block-pill {
+  position: absolute; left: 2px; right: 2px; top: 2px; border-radius: 5px;
+  padding: 2px 6px; font-size: 10px; font-weight: 500; z-index: 2;
+  overflow: hidden; display: flex; align-items: center; justify-content: space-between;
+}
+.block-pill.lunch { background: #D3D1C7; color: #444441; }
+.block-pill.admin { background: #CECBF6; color: #3C3489; }
+.block-pill.off { background: #F4C0D1; color: #72243E; }
+.block-pill.custom { background: #FAC775; color: #633806; }
+.block-remove { cursor: pointer; font-size: 11px; opacity: .6; }
+.block-remove:hover { opacity: 1; }
+
+/* Waitlist */
+#wl-wrap { position: relative; }
+#wl-btn { display: flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: none; cursor: pointer; font-size: 11px; font-weight: 500; color: var(--text2); font-family: 'DM Sans', sans-serif; }
+#wl-btn:hover { background: var(--bg2); }
+#wl-badge { min-width: 16px; height: 16px; border-radius: 20px; background: var(--bg3); color: var(--text2); font-size: 10px; font-weight: 500; padding: 0 5px; display: flex; align-items: center; justify-content: center; }
+#wl-badge.has-entries { background: #BA7517; color: #fff; }
+#wl-dropdown { display: none; position: absolute; top: calc(100% + 6px); right: 0; width: 320px; background: var(--surface); border: 0.5px solid var(--border2); border-radius: var(--radius); box-shadow: var(--shadow-md); z-index: 50; }
+#wl-dropdown.open { display: block; }
+#wl-dropdown-header { padding: 10px 13px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+#wl-dropdown-header span { font-size: 12px; font-weight: 500; color: var(--text); }
+#wl-add-btn { font-size: 11px; padding: 3px 9px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: none; cursor: pointer; color: var(--text2); font-family: 'DM Sans', sans-serif; }
+#wl-add-btn:hover { background: var(--bg2); }
+#wl-list { max-height: 260px; overflow-y: auto; }
+.wl-item { padding: 9px 13px; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-start; gap: 9px; }
+.wl-item:last-child { border-bottom: none; }
+.wl-item-left { flex: 1; min-width: 0; }
+.wl-item-name { font-size: 12px; font-weight: 500; color: var(--text); }
+.wl-item-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.wl-item-status { font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 20px; margin-top: 4px; display: inline-block; }
+.wl-item-status.waiting { background: var(--bg2); color: var(--text2); }
+.wl-item-status.offered { background: var(--amber-light); color: var(--amber); }
+.wl-item-status.accepted { background: var(--green-light); color: var(--green); }
+.wl-item-status.declined { background: var(--red-light); color: var(--red); }
+.wl-item-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.wl-action-btn { font-size: 10px; padding: 3px 8px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: none; cursor: pointer; font-family: 'DM Sans', sans-serif; color: var(--text2); white-space: nowrap; }
+.wl-action-btn.accept { background: var(--green-light); color: var(--green); border-color: #9FCC55; }
+.wl-action-btn.decline { background: var(--red-light); color: var(--red); border-color: #F7C1C1; }
+#wl-empty { padding: 20px 13px; font-size: 12px; color: var(--text3); text-align: center; }
+#wl-add-form { padding: 11px 13px; border-top: 0.5px solid var(--border); display: none; flex-direction: column; gap: 7px; }
+#wl-add-form.open { display: flex; }
+#wl-add-form input, #wl-add-form select { font-size: 12px; padding: 6px 9px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+#wl-add-form input:focus, #wl-add-form select:focus { outline: none; border-color: var(--blue); }
+.wl-form-row { display: flex; gap: 6px; }
+#wl-save-btn { padding: 6px 12px; border-radius: var(--radius-sm); background: var(--blue); color: #fff; border: none; font-size: 12px; font-weight: 500; cursor: pointer; align-self: flex-end; font-family: 'DM Sans', sans-serif; }
+
+/* Waitlist */
+#wl-btn { position: relative; display: flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: none; cursor: pointer; font-size: 11px; font-weight: 500; color: var(--text2); font-family: 'DM Sans', sans-serif; }
+#wl-btn:hover { background: var(--bg2); }
+#wl-badge { display: none; min-width: 16px; height: 16px; border-radius: 20px; background: var(--amber-light); color: var(--amber); font-size: 10px; font-weight: 500; padding: 0 5px; display: flex; align-items: center; justify-content: center; }
+#wl-badge.has-entries { background: #BA7517; color: #fff; }
+#wl-dropdown { display: none; position: absolute; top: calc(100% + 6px); right: 0; width: 320px; background: var(--surface); border: 0.5px solid var(--border2); border-radius: var(--radius); box-shadow: var(--shadow-md); z-index: 50; }
+#wl-dropdown.open { display: block; }
+#wl-dropdown-header { padding: 10px 13px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+#wl-dropdown-header span { font-size: 12px; font-weight: 500; color: var(--text); }
+#wl-add-btn { font-size: 11px; padding: 3px 9px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: none; cursor: pointer; color: var(--text2); font-family: 'DM Sans', sans-serif; }
+#wl-add-btn:hover { background: var(--bg2); }
+#wl-list { max-height: 280px; overflow-y: auto; }
+.wl-item { padding: 9px 13px; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-start; gap: 9px; }
+.wl-item:last-child { border-bottom: none; }
+.wl-item-left { flex: 1; min-width: 0; }
+.wl-item-name { font-size: 12px; font-weight: 500; color: var(--text); }
+.wl-item-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.wl-item-status { font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 20px; margin-top: 4px; display: inline-block; }
+.wl-item-status.waiting { background: var(--bg2); color: var(--text2); }
+.wl-item-status.offered { background: var(--amber-light); color: var(--amber); }
+.wl-item-status.accepted { background: var(--green-light); color: var(--green); }
+.wl-item-status.declined { background: var(--red-light); color: var(--red); }
+.wl-item-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.wl-action-btn { font-size: 10px; padding: 3px 8px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: none; cursor: pointer; font-family: 'DM Sans', sans-serif; color: var(--text2); white-space: nowrap; }
+.wl-action-btn.accept { background: var(--green-light); color: var(--green); border-color: #9FCC55; }
+.wl-action-btn.decline { background: var(--red-light); color: var(--red); border-color: #F7C1C1; }
+.wl-action-btn:hover { filter: brightness(.95); }
+#wl-empty { padding: 20px 13px; font-size: 12px; color: var(--text3); text-align: center; }
+#wl-add-form { padding: 11px 13px; border-top: 0.5px solid var(--border); display: none; flex-direction: column; gap: 7px; }
+#wl-add-form.open { display: flex; }
+#wl-add-form input, #wl-add-form select { font-size: 12px; padding: 6px 9px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+#wl-add-form input:focus, #wl-add-form select:focus { outline: none; border-color: var(--blue); }
+.wl-form-row { display: flex; gap: 6px; }
+#wl-save-btn { padding: 6px 12px; border-radius: var(--radius-sm); background: var(--blue); color: #fff; border: none; font-size: 12px; font-weight: 500; cursor: pointer; align-self: flex-end; font-family: 'DM Sans', sans-serif; }
+.wl-notify-banner { margin: 8px 13px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--amber-light); border: 0.5px solid #FAC775; font-size: 11px; color: var(--amber); display: flex; align-items: flex-start; gap: 6px; }
+
+#legend {
+  display: flex; gap: 8px; padding: 8px 16px;
+  border-top: 0.5px solid var(--border); flex-wrap: wrap;
+  background: var(--surface);
+}
+.leg-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text2); }
+.leg-dot { width: 9px; height: 9px; border-radius: 2px; }
+
+/* Patient Sidebar */
+#patient-sidebar {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 290px;
+  background: var(--surface); border-left: 0.5px solid var(--border);
+  display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform .22s ease;
+  z-index: 10; box-shadow: var(--shadow-md);
+}
+#patient-sidebar.open { transform: translateX(0); }
+#sidebar-header { padding: 14px 14px 12px; border-bottom: 0.5px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+#sidebar-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--blue-mid); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; color: #0C447C; flex-shrink: 0; font-family: 'DM Mono', monospace; }
+#sidebar-name-block { flex: 1; }
+#sidebar-patient-name { font-size: 14px; font-weight: 500; }
+#sidebar-patient-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+#sidebar-close { background: none; border: none; cursor: pointer; color: var(--text2); font-size: 17px; line-height: 1; }
+#sidebar-close:hover { color: var(--text); }
+#sidebar-tabs { display: flex; border-bottom: 0.5px solid var(--border); }
+.stab { flex: 1; padding: 8px 0; font-size: 11px; font-weight: 500; text-align: center; cursor: pointer; border: none; background: none; color: var(--text2); border-bottom: 2px solid transparent; font-family: 'DM Sans', sans-serif; transition: color .15s; }
+.stab.active { color: var(--blue); border-bottom-color: var(--blue); }
+#sidebar-body { flex: 1; overflow-y: auto; padding: 14px; }
+.s-section { margin-bottom: 16px; }
+.s-label { font-size: 10px; font-weight: 500; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 7px; font-family: 'DM Mono', monospace; }
+.s-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 0.5px solid var(--border); font-size: 12px; }
+.s-row:last-child { border-bottom: none; }
+.s-key { color: var(--text2); }
+.s-val { color: var(--text); font-weight: 500; text-align: right; max-width: 58%; }
+.s-pill { font-size: 10px; font-weight: 500; padding: 2px 9px; border-radius: 20px; }
+.s-pill.green { background: var(--green-light); color: var(--green); }
+.s-pill.amber { background: var(--amber-light); color: var(--amber); }
+.s-pill.red { background: var(--red-light); color: var(--red); }
+.s-pill.blue { background: var(--blue-light); color: var(--blue); }
+.ins-edit { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.ins-edit select, .ins-edit input {
+  font-size: 12px; padding: 6px 9px; border-radius: var(--radius-sm);
+  border: 0.5px solid var(--border2); background: var(--bg);
+  color: var(--text); font-family: 'DM Sans', sans-serif;
+}
+.ins-edit select:focus, .ins-edit input:focus { outline: none; border-color: var(--blue); }
+.ins-save { padding: 6px 14px; border-radius: var(--radius-sm); background: var(--blue); color: #fff; border: none; font-size: 12px; font-weight: 500; cursor: pointer; align-self: flex-end; font-family: 'DM Sans', sans-serif; }
+.timeline-item { display: flex; gap: 10px; margin-bottom: 14px; }
+.tl-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
+.tl-dot.appt { background: var(--blue); }
+.tl-dot.cancel { background: #E24B4A; }
+.tl-dot.new { background: #639922; }
+.tl-line { width: 1px; background: var(--border); margin: 13px 0 0 4px; }
+.tl-title { font-size: 12px; font-weight: 500; color: var(--text); }
+.tl-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.upcoming-card { padding: 8px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border); margin-bottom: 6px; background: var(--bg); }
+.upcoming-top { display: flex; justify-content: space-between; align-items: center; }
+.upcoming-type { font-size: 12px; font-weight: 500; }
+.upcoming-therapist { font-size: 10px; color: var(--text2); }
+.upcoming-time { font-size: 11px; color: var(--text2); margin-top: 2px; font-family: 'DM Mono', monospace; }
+.notes-area { width: 100%; font-size: 12px; padding: 8px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; line-height: 1.55; resize: vertical; min-height: 90px; }
+.notes-area:focus { outline: none; border-color: var(--blue); }
+.notes-save { margin-top: 7px; padding: 5px 14px; border-radius: var(--radius-sm); background: var(--blue); color: #fff; border: none; font-size: 11px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+
+/* Block modal */
+#modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 100; align-items: center; justify-content: center; }
+#modal-overlay.open { display: flex; }
+#modal { background: var(--surface); border-radius: var(--radius); border: 0.5px solid var(--border2); padding: 20px; width: 300px; display: flex; flex-direction: column; gap: 13px; box-shadow: var(--shadow-md); }
+#modal h3 { font-size: 14px; font-weight: 500; }
+#modal-meta { font-size: 11px; color: var(--text2); margin-top: -7px; font-family: 'DM Mono', monospace; }
+.field-label { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+.field-group { display: flex; flex-direction: column; }
+#modal select, #modal input[type=text] { font-size: 12px; padding: 7px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; }
+.recur-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+#modal-duration { display: flex; gap: 5px; flex-wrap: wrap; }
+.dur-btn { padding: 4px 10px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: none; color: var(--text2); font-size: 11px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all .15s; }
+.dur-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+#modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.btn-cancel-modal { padding: 7px 14px; border-radius: var(--radius-sm); border: 0.5px solid var(--border2); background: none; color: var(--text2); font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+.btn-save-modal { padding: 7px 14px; border-radius: var(--radius-sm); border: none; background: var(--blue); color: #fff; font-size: 12px; font-weight: 500; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+
+/* Intake Forms */
+#form-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200; align-items:center; justify-content:center; }
+#form-modal-overlay.open { display:flex; }
+#form-modal { background:var(--surface); border-radius:var(--radius); border:0.5px solid var(--border2); width:min(680px,95vw); max-height:90vh; display:flex; flex-direction:column; box-shadow:var(--shadow-md); }
+#form-modal-header { padding:16px 18px; border-bottom:0.5px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+#form-modal-title { font-size:15px; font-weight:500; color:var(--text); }
+#form-modal-sub { font-size:12px; color:var(--text2); margin-top:2px; }
+#form-modal-close { background:none; border:none; cursor:pointer; font-size:18px; color:var(--text2); }
+#form-modal-body { flex:1; overflow-y:auto; padding:18px; }
+#form-modal-footer { padding:12px 18px; border-top:0.5px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+#form-progress-wrap { flex:1; margin-right:16px; }
+#form-progress-label { font-size:11px; color:var(--text2); margin-bottom:5px; }
+#form-progress-bar { height:4px; background:var(--bg3); border-radius:2px; }
+#form-progress-fill { height:4px; background:var(--blue); border-radius:2px; transition:width .3s; }
+.form-q { margin-bottom:20px; }
+.form-q-text { font-size:13px; font-weight:500; color:var(--text); margin-bottom:10px; line-height:1.5; }
+.form-q-sub { font-size:11px; color:var(--text2); margin-bottom:8px; }
+.form-options { display:flex; flex-direction:column; gap:6px; }
+.form-option { display:flex; align-items:center; gap:10px; padding:8px 11px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); cursor:pointer; font-size:12px; color:var(--text); transition:background .12s; }
+.form-option:hover { background:var(--bg2); }
+.form-option.selected { background:var(--blue-light); border-color:var(--blue-mid); color:var(--blue); }
+.form-option input[type=radio] { display:none; }
+.form-nav-btn { padding:8px 16px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:none; color:var(--text2); font-size:13px; cursor:pointer; font-family:'DM Sans',sans-serif; }
+.form-nav-btn.primary { background:var(--blue); color:#fff; border-color:var(--blue); }
+.form-nav-btn:hover { filter:brightness(.95); }
+.form-result-score { text-align:center; padding:20px 0 12px; }
+.form-result-number { font-size:48px; font-weight:500; color:var(--blue); font-family:'DM Mono',monospace; }
+.form-result-label { font-size:13px; color:var(--text2); margin-top:4px; }
+.form-result-interp { display:inline-block; margin-top:10px; padding:4px 14px; border-radius:20px; font-size:12px; font-weight:500; }
+.form-result-interp.minimal { background:var(--green-light); color:var(--green); }
+.form-result-interp.mild { background:#EAF3DE; color:#3B6D11; }
+.form-result-interp.moderate { background:var(--amber-light); color:var(--amber); }
+.form-result-interp.severe { background:var(--red-light); color:var(--red); }
+.form-result-interp.complete { background:#FCEBEB; color:#791F1F; }
+.form-answers-table { width:100%; margin-top:16px; font-size:12px; border-collapse:collapse; }
+.form-answers-table td { padding:5px 8px; border-bottom:0.5px solid var(--border); vertical-align:top; }
+.form-answers-table td:first-child { color:var(--text2); width:65%; }
+.form-answers-table td:last-child { font-weight:500; color:var(--text); text-align:right; }
+.form-card { padding:9px 11px; border-radius:var(--radius-sm); border:0.5px solid var(--border); margin-bottom:7px; background:var(--bg); }
+.form-card-top { display:flex; align-items:center; justify-content:space-between; }
+.form-card-name { font-size:12px; font-weight:500; color:var(--text); }
+.form-card-status { font-size:10px; font-weight:500; padding:2px 8px; border-radius:20px; }
+.form-card-status.sent { background:var(--amber-light); color:var(--amber); }
+.form-card-status.completed { background:var(--green-light); color:var(--green); }
+.form-card-status.pending { background:var(--bg2); color:var(--text2); }
+.form-card-meta { font-size:11px; color:var(--text2); margin-top:3px; }
+.form-card-actions { display:flex; gap:5px; margin-top:7px; }
+.form-card-btn { font-size:11px; padding:3px 9px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:none; cursor:pointer; color:var(--text2); font-family:'DM Sans',sans-serif; }
+.form-card-btn.primary { background:var(--blue); color:#fff; border-color:var(--blue); }
+.form-assign-row { display:flex; gap:6px; margin-bottom:10px; }
+.form-assign-row select { flex:1; font-size:12px; padding:6px 9px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; }
+.form-assign-row button { padding:6px 12px; border-radius:var(--radius-sm); background:var(--blue); color:#fff; border:none; font-size:12px; font-weight:500; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap; }
+
+/* Recurring Series */
+.appt.series-badge { border: 2px solid rgba(255,255,255,0.5); }
+.series-dot { position:absolute; top:3px; right:3px; width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,0.8); z-index:3; }
+#series-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:150; align-items:center; justify-content:center; }
+#series-modal-overlay.open { display:flex; }
+#series-modal { background:var(--surface); border-radius:var(--radius); border:0.5px solid var(--border2); width:min(460px,94vw); box-shadow:var(--shadow-md); padding:22px; display:flex; flex-direction:column; gap:14px; }
+#series-modal h3 { font-size:15px; font-weight:500; }
+#series-modal p { font-size:13px; color:var(--text2); line-height:1.6; }
+.series-opts { display:flex; flex-direction:column; gap:7px; }
+.series-opt { padding:10px 13px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); cursor:pointer; font-size:13px; display:flex; align-items:center; gap:10px; transition:background .12s; }
+.series-opt:hover { background:var(--bg2); }
+.series-opt.selected { background:var(--blue-light); border-color:var(--blue-mid); color:var(--blue); }
+.series-opt-radio { width:18px; height:18px; border-radius:50%; border:1.5px solid var(--border2); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.series-opt.selected .series-opt-radio { border-color:var(--blue); }
+.series-opt.selected .series-opt-radio::after { content:''; width:9px; height:9px; border-radius:50%; background:var(--blue); display:block; }
+.series-result { padding:11px 13px; border-radius:var(--radius-sm); background:var(--green-light); border:0.5px solid #9FCC55; font-size:12px; color:var(--green); line-height:1.6; }
+.series-result.warn { background:var(--amber-light); border-color:#FAC775; color:var(--amber); }
+#series-modal-actions { display:flex; gap:8px; justify-content:flex-end; }
+.series-btn { padding:8px 16px; border-radius:var(--radius-sm); font-size:13px; font-weight:500; cursor:pointer; font-family:'DM Sans',sans-serif; border:0.5px solid var(--border2); background:none; color:var(--text2); }
+.series-btn.primary { background:var(--blue); color:#fff; border-color:var(--blue); }
+.series-btn:hover { filter:brightness(.95); }
+
+/* SOAP Notes */
+#soap-modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:300; align-items:flex-start; justify-content:center; padding:20px; overflow-y:auto; }
+#soap-modal-overlay.open { display:flex; }
+#soap-modal { background:var(--surface); border-radius:var(--radius); border:0.5px solid var(--border2); width:min(820px,96vw); box-shadow:var(--shadow-md); display:flex; flex-direction:column; margin:auto; }
+#soap-modal-header { padding:14px 18px; border-bottom:0.5px solid var(--border); display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:var(--surface); z-index:1; border-radius:var(--radius) var(--radius) 0 0; }
+#soap-modal-title { font-size:15px; font-weight:500; }
+#soap-modal-sub { font-size:11px; color:var(--text2); margin-top:2px; }
+#soap-modal-close { background:none; border:none; cursor:pointer; font-size:18px; color:var(--text2); }
+#soap-modal-body { padding:0; display:flex; flex-direction:column; }
+.soap-section { border-bottom:0.5px solid var(--border); }
+.soap-section-header { padding:12px 18px; display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; }
+.soap-section-letter { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500; flex-shrink:0; }
+.soap-s .soap-section-letter { background:#B5D4F4; color:#0C447C; }
+.soap-o .soap-section-letter { background:#9FE1CB; color:#085041; }
+.soap-a .soap-section-letter { background:#FAC775; color:#633806; }
+.soap-p .soap-section-letter { background:#CECBF6; color:#3C3489; }
+.soap-section-title { font-size:13px; font-weight:500; color:var(--text); flex:1; }
+.soap-section-body { padding:0 18px 16px; display:flex; flex-direction:column; gap:12px; }
+.soap-field-group { display:flex; flex-direction:column; gap:5px; }
+.soap-field-label { font-size:11px; font-weight:500; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; }
+.soap-field-row { display:flex; gap:8px; flex-wrap:wrap; }
+.soap-input { font-size:13px; padding:7px 10px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; width:100%; }
+.soap-input:focus { outline:none; border-color:var(--blue); }
+.soap-textarea { font-size:13px; padding:8px 10px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; width:100%; resize:vertical; min-height:70px; line-height:1.5; }
+.soap-textarea:focus { outline:none; border-color:var(--blue); }
+.soap-select { font-size:13px; padding:7px 10px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; }
+.soap-select:focus { outline:none; border-color:var(--blue); }
+.soap-inline-group { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.soap-inline-group-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+.nrs-wrap { display:flex; align-items:center; gap:6px; }
+.nrs-btn { width:34px; height:34px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:none; cursor:pointer; font-size:13px; font-weight:500; color:var(--text2); transition:all .12s; }
+.nrs-btn:hover { border-color:var(--blue); color:var(--blue); }
+.nrs-btn.selected { background:var(--blue); color:#fff; border-color:var(--blue); }
+.rom-table { width:100%; border-collapse:collapse; font-size:12px; }
+.rom-table th { text-align:left; padding:5px 8px; font-size:10px; font-weight:500; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; border-bottom:0.5px solid var(--border); }
+.rom-table td { padding:4px 6px; border-bottom:0.5px solid var(--border); }
+.rom-table td input { width:60px; font-size:12px; padding:4px 6px; border-radius:4px; border:0.5px solid var(--border2); background:var(--bg); color:var(--text); font-family:'DM Mono',monospace; text-align:center; }
+.rom-table td input:focus { outline:none; border-color:var(--blue); }
+.mmt-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.mmt-label { font-size:12px; color:var(--text); width:140px; flex-shrink:0; }
+.mmt-btns { display:flex; gap:3px; }
+.mmt-btn { width:28px; height:28px; border-radius:4px; border:0.5px solid var(--border2); background:none; font-size:11px; font-weight:500; cursor:pointer; color:var(--text2); }
+.mmt-btn:hover { border-color:var(--blue); color:var(--blue); }
+.mmt-btn.selected { background:var(--blue); color:#fff; border-color:var(--blue); }
+.special-test-row { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:0.5px solid var(--border); }
+.special-test-name { font-size:12px; color:var(--text); flex:1; }
+.test-result-btn { padding:3px 10px; border-radius:20px; border:0.5px solid var(--border2); font-size:11px; font-weight:500; cursor:pointer; background:none; color:var(--text2); font-family:'DM Sans',sans-serif; }
+.test-result-btn:hover { background:var(--bg2); }
+.test-result-btn.positive { background:#FCEBEB; color:var(--red); border-color:#F7C1C1; }
+.test-result-btn.negative { background:var(--green-light); color:var(--green); border-color:#9FCC55; }
+.test-result-btn.not-tested { background:var(--bg2); color:var(--text3); }
+.goal-row { padding:8px 10px; border-radius:var(--radius-sm); border:0.5px solid var(--border); background:var(--bg); display:flex; gap:8px; align-items:flex-start; margin-bottom:6px; }
+.goal-row-inputs { flex:1; display:flex; flex-direction:column; gap:5px; }
+.goal-remove { background:none; border:none; cursor:pointer; color:var(--text3); font-size:16px; padding:2px; }
+.goal-remove:hover { color:var(--red); }
+.add-goal-btn { font-size:12px; padding:5px 12px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:none; color:var(--text2); cursor:pointer; font-family:'DM Sans',sans-serif; }
+.add-goal-btn:hover { background:var(--bg2); }
+#soap-modal-footer { padding:14px 18px; border-top:0.5px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:12px; position:sticky; bottom:0; background:var(--surface); border-radius:0 0 var(--radius) var(--radius); }
+.soap-sig-wrap { display:flex; flex-direction:column; gap:4px; flex:1; }
+.soap-sig-label { font-size:11px; color:var(--text2); }
+.soap-sig-row { display:flex; gap:8px; align-items:center; }
+.soap-sig-input { font-size:13px; padding:6px 10px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; }
+.soap-footer-btns { display:flex; gap:8px; }
+.soap-btn { padding:8px 16px; border-radius:var(--radius-sm); font-size:13px; font-weight:500; cursor:pointer; font-family:'DM Sans',sans-serif; border:0.5px solid var(--border2); background:none; color:var(--text2); }
+.soap-btn.primary { background:var(--blue); color:#fff; border-color:var(--blue); }
+.soap-btn.signed { background:var(--green-light); color:var(--green); border-color:#9FCC55; }
+.soap-btn:hover { filter:brightness(.95); }
+.soap-note-card { padding:9px 11px; border-radius:var(--radius-sm); border:0.5px solid var(--border); margin-bottom:7px; background:var(--bg); }
+.soap-note-card-top { display:flex; align-items:center; justify-content:space-between; }
+.soap-note-card-type { font-size:12px; font-weight:500; color:var(--text); }
+.soap-note-card-date { font-size:11px; color:var(--text2); }
+.soap-note-card-meta { font-size:11px; color:var(--text2); margin-top:3px; }
+.soap-note-card-status { font-size:10px; font-weight:500; padding:2px 8px; border-radius:20px; margin-top:5px; display:inline-block; }
+.soap-note-card-status.draft { background:var(--amber-light); color:var(--amber); }
+.soap-note-card-status.signed { background:var(--green-light); color:var(--green); }
+.soap-note-card-actions { display:flex; gap:5px; margin-top:7px; }
+.soap-note-card-btn { font-size:11px; padding:3px 9px; border-radius:var(--radius-sm); border:0.5px solid var(--border2); background:none; cursor:pointer; color:var(--text2); font-family:'DM Sans',sans-serif; }
+.soap-note-card-btn.primary { background:var(--blue); color:#fff; border-color:var(--blue); }
+</style>
+</head>
+<body>
+
+<div id="key-gate">
+  <div id="key-card">
+    <div class="clinic-tag">Apex Physical Therapy</div>
+    <h1>AI Scheduler</h1>
+    <p>Connect your Anthropic API key to activate Aria. Your key stays in memory for this session only and is never stored anywhere.</p>
+    <div id="key-row">
+      <input id="api-key-input" type="password" placeholder="sk-ant-..." spellcheck="false" autocomplete="off"/>
+      <button id="key-save-btn" onclick="saveKey()">Connect</button>
+    </div>
+    <div id="key-note">Get a key at console.anthropic.com &rarr; API Keys</div>
+  </div>
+</div>
+
+<div id="shell">
+  <!-- Phone Panel -->
+  <div id="phone-panel">
+    <div id="phone-header">
+      <div class="clinic-tag">AI Receptionist</div>
+      <div class="clinic-title">Apex Physical Therapy</div>
+      <div id="key-indicator">&#10003; API key connected</div>
+      <div id="call-status">
+        <div id="status-dot"></div>
+        <span id="status-label">No active call</span>
+      </div>
+    </div>
+    <div id="patient-banner">
+      <div id="patient-banner-name"></div>
+      <div id="patient-banner-detail"></div>
+    </div>
+    <div id="messages"><div class="msg system">Start a simulated patient call below</div></div>
+    <div id="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    <div id="call-btn-wrap">
+      <button id="call-btn" onclick="startCall()">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>
+        Simulate incoming call
+      </button>
+    </div>
+  </div>
+
+  <!-- Calendar Panel -->
+  <div id="cal-panel">
+    <div id="cal-header">
+      <h2>Schedule</h2>
+      <div id="cal-header-right">
+        <div id="wl-wrap">
+          <button id="wl-btn" onclick="toggleWaitlist(event)">
+            Waitlist <span id="wl-badge">0</span>
+          </button>
+          <div id="wl-dropdown">
+            <div id="wl-dropdown-header">
+              <span>Waitlist</span>
+              <button id="wl-add-btn" onclick="toggleWlForm()">+ Add patient</button>
+            </div>
+            <div id="wl-list"></div>
+            <div id="wl-empty">No patients on the waitlist</div>
+            <div id="wl-add-form">
+              <input type="text" id="wl-name-inp" placeholder="Patient name"/>
+              <input type="text" id="wl-phone-inp" placeholder="Phone number"/>
+              <select id="wl-type-sel">
+                <option value="">Any appointment type</option>
+                <option>Initial evaluation</option>
+                <option>Follow-up visit</option>
+                <option>Dry needling</option>
+                <option>Sports rehab</option>
+                <option>Post-surgical rehab</option>
+              </select>
+              <select id="wl-therapist-sel">
+                <option value="">Any therapist</option>
+                <option>Dr. Smith</option>
+                <option>Dr. Chen</option>
+                <option>Dr. Patel</option>
+              </select>
+              <button id="wl-save-btn" onclick="adminAddToWaitlist()">Add to waitlist</button>
+            </div>
+          </div>
+        </div>
+        <div id="mode-toggle">
+          <button class="mode-btn active" onclick="setMode('view',this)">View</button>
+          <button class="mode-btn" onclick="setMode('edit',this)">Edit availability</button>
+        </div>
+        <div id="week-nav">
+          <button class="nav-btn" onclick="shiftWeek(-1)">&#8249;</button>
+          <span id="week-label"></span>
+          <button class="nav-btn" onclick="shiftWeek(1)">&#8250;</button>
+        </div>
+      </div>
+    </div>
+    <div id="therapist-tabs">
+      <button class="tab active" onclick="selectTherapist(this,'All')">All</button>
+      <button class="tab" onclick="selectTherapist(this,'Dr. Smith')">Dr. Smith</button>
+      <button class="tab" onclick="selectTherapist(this,'Dr. Chen')">Dr. Chen</button>
+      <button class="tab" onclick="selectTherapist(this,'Dr. Patel')">Dr. Patel</button>
+      <span id="edit-hint">Click any open cell to block time</span>
+    </div>
+    <div id="cal-grid-wrap"><div id="cal-grid"></div></div>
+    <div id="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#B5D4F4"></div>Eval</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#9FE1CB"></div>Follow-up</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#F4C0D1"></div>Dry needling</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#FAC775"></div>Sports</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#CECBF6"></div>Post-surgical</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#EAF3DE;border:0.5px solid #639922"></div>Available</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#D3D1C7"></div>Blocked</div>
+    </div>
+
+    <!-- Patient Sidebar -->
+    <div id="patient-sidebar">
+      <div id="sidebar-header">
+        <div id="sidebar-avatar"></div>
+        <div id="sidebar-name-block">
+          <div id="sidebar-patient-name"></div>
+          <div id="sidebar-patient-sub"></div>
+        </div>
+        <button id="sidebar-close" onclick="closeSidebar()">&#10005;</button>
+      </div>
+      <div id="sidebar-tabs">
+        <button class="stab active" onclick="switchSTab('info',this)">Info</button>
+        <button class="stab" onclick="switchSTab('insurance',this)">Insurance</button>
+        <button class="stab" onclick="switchSTab('timeline',this)">Timeline</button>
+        <button class="stab" onclick="switchSTab('notes',this)">Notes</button>
+        <button class="stab" onclick="switchSTab('forms',this)">Forms</button>
+        <button class="stab" onclick="switchSTab('soap',this)">SOAP</button>
+      </div>
+      <div id="sidebar-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Block Modal -->
+<div id="modal-overlay">
+  <div id="modal">
+    <h3 id="modal-title">Add availability block</h3>
+    <div id="modal-meta"></div>
+    <div class="field-group">
+      <div class="field-label">Block type</div>
+      <select id="block-type" onchange="onBlockTypeChange()">
+        <option value="lunch">Lunch break</option>
+        <option value="admin">Admin / charting</option>
+        <option value="off">Time off / vacation</option>
+        <option value="custom">Custom label</option>
+      </select>
+    </div>
+    <div class="field-group" id="custom-label-group" style="display:none">
+      <div class="field-label">Custom label</div>
+      <input type="text" id="custom-label" placeholder="e.g. Staff meeting"/>
+    </div>
+    <div class="field-group">
+      <div class="field-label">Therapist</div>
+      <select id="block-therapist">
+        <option>Dr. Smith</option><option>Dr. Chen</option><option>Dr. Patel</option>
+        <option value="All">All therapists</option>
+      </select>
+    </div>
+    <div class="field-group">
+      <div class="field-label">Duration</div>
+      <div id="modal-duration">
+        <button class="dur-btn active" onclick="selectDur(this,1)">30 min</button>
+        <button class="dur-btn" onclick="selectDur(this,2)">1 hr</button>
+        <button class="dur-btn" onclick="selectDur(this,3)">1.5 hr</button>
+        <button class="dur-btn" onclick="selectDur(this,4)">2 hr</button>
+        <button class="dur-btn" onclick="selectDur(this,16)">Full day</button>
+      </div>
+    </div>
+    <div class="recur-row">
+      <input type="checkbox" id="block-recurring"/>
+      <label for="block-recurring">Repeat every week on this day</label>
+    </div>
+    <div id="modal-actions">
+      <button class="btn-cancel-modal" onclick="closeModal()">Cancel</button>
+      <button class="btn-save-modal" onclick="saveBlock()">Save block</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let API_KEY='';
+function saveKey(){
+  const v=document.getElementById('api-key-input').value.trim();
+  if(!v.startsWith('sk-')){document.getElementById('api-key-input').style.borderColor='#E24B4A';return;}
+  API_KEY=v;
+  document.getElementById('key-gate').style.display='none';
+  renderCalendar();
+}
+document.getElementById('api-key-input').addEventListener('keydown',e=>{if(e.key==='Enter')saveKey();});
+
+const APPT_TYPES={'Initial evaluation':{duration:60,cls:'eval'},'Follow-up visit':{duration:30,cls:'followup'},'Dry needling':{duration:30,cls:'dry'},'Sports rehab':{duration:45,cls:'sports'},'Post-surgical rehab':{duration:60,cls:'surgical'}};
+const THERAPISTS=['Dr. Smith','Dr. Chen','Dr. Patel'];
+const DAYS=['Mon','Tue','Wed','Thu','Fri'];
+const HOURS=Array.from({length:18},(_,i)=>{const h=7+Math.floor(i/2);const m=i%2===0?'00':'30';return`${h}:${m}`;});
+const INS_TYPES=['Medicare','Medicaid','Private insurance','Workers\' comp','Self-pay'];
+
+let therapistHours={'Dr. Smith':[2,16],'Dr. Chen':[0,14],'Dr. Patel':[4,18]};
+let blocks=[
+  {therapist:'Dr. Smith',dayIdx:1,startSlot:6,durationSlots:2,type:'lunch',label:'Lunch',recurring:true},
+  {therapist:'Dr. Chen',dayIdx:3,startSlot:6,durationSlots:2,type:'lunch',label:'Lunch',recurring:true},
+  {therapist:'Dr. Patel',dayIdx:2,startSlot:6,durationSlots:2,type:'lunch',label:'Lunch',recurring:true},
+  {therapist:'Dr. Smith',dayIdx:4,startSlot:0,durationSlots:18,type:'off',label:'Vacation',recurring:false},
+  {therapist:'Dr. Chen',dayIdx:0,startSlot:10,durationSlots:2,type:'admin',label:'Admin',recurring:true},
+];
+let patients=[
+  {id:1,fullName:'James Reynolds',phone:'555-0101',email:'james@email.com',dob:'1985-04-12',visits:4,insurance:'Private insurance',insuranceId:'BCB-4421',referralStatus:'on file',referralDr:'Dr. Nguyen',notes:'Prefers morning appointments. Right knee patient.',timeline:[{type:'new',date:'Jan 10',desc:'New patient registered'},{type:'appt',date:'Jan 15',desc:'Initial evaluation — Dr. Smith'},{type:'appt',date:'Jan 22',desc:'Follow-up visit — Dr. Smith'},{type:'appt',date:'Feb 5',desc:'Follow-up visit — Dr. Smith'},{type:'appt',date:'Feb 19',desc:'Follow-up visit — Dr. Smith'}]},
+  {id:2,fullName:'Maria Lopez',phone:'555-0102',email:'maria@email.com',dob:'1990-07-22',visits:1,insurance:'Medicare',insuranceId:'MED-7731',referralStatus:'on file',referralDr:'Dr. Patel',notes:'',timeline:[{type:'new',date:'Mar 28',desc:'New patient registered'},{type:'appt',date:'Mar 31',desc:'Initial evaluation — Dr. Chen'}]},
+  {id:3,fullName:'Tom Burke',phone:'555-0103',email:'tom@email.com',dob:'1978-11-03',visits:7,insurance:'Workers\' comp',insuranceId:'WC-2209',referralStatus:'on file',referralDr:'Dr. Reyes',notes:'Work injury — lower back. Cleared for light exercise.',timeline:[{type:'new',date:'Nov 5',desc:'New patient registered'},{type:'appt',date:'Nov 12',desc:'Initial evaluation — Dr. Patel'},{type:'appt',date:'Nov 26',desc:'Sports rehab — Dr. Patel'},{type:'cancel',date:'Dec 24',desc:'Cancelled — holiday conflict'},{type:'appt',date:'Jan 7',desc:'Sports rehab — Dr. Patel'},{type:'appt',date:'Feb 4',desc:'Sports rehab — Dr. Patel'}]},
+  {id:4,fullName:'Sarah Kim',phone:'555-0104',email:'sarah@email.com',dob:'1995-02-18',visits:3,insurance:'Private insurance',insuranceId:'UHC-9902',referralStatus:'pending',referralDr:'',notes:'Awaiting referral from primary care. Neck & shoulder.',timeline:[{type:'new',date:'Feb 15',desc:'New patient registered'},{type:'appt',date:'Feb 20',desc:'Initial evaluation — Dr. Smith'},{type:'appt',date:'Mar 6',desc:'Dry needling — Dr. Smith'},{type:'appt',date:'Mar 20',desc:'Dry needling — Dr. Smith'}]},
+  {id:5,fullName:'Alex Martinez',phone:'555-0105',email:'alex@email.com',dob:'1972-09-30',visits:12,insurance:'Medicaid',insuranceId:'MCD-3310',referralStatus:'on file',referralDr:'Dr. Hasan',notes:'Post-surgical hip replacement. Excellent progress.',timeline:[{type:'new',date:'Sep 1',desc:'New patient registered'},{type:'appt',date:'Sep 8',desc:'Post-surgical rehab — Dr. Chen'},{type:'appt',date:'Oct 6',desc:'Post-surgical rehab — Dr. Chen'},{type:'cancel',date:'Nov 17',desc:'Cancelled — illness'},{type:'appt',date:'Dec 1',desc:'Post-surgical rehab — Dr. Chen'},{type:'appt',date:'Jan 26',desc:'Post-surgical rehab — Dr. Chen'},{type:'appt',date:'Feb 9',desc:'Post-surgical rehab — Dr. Chen'}]},
+];
+let appointments=[
+  {patientId:1,name:'James R.',type:'Follow-up visit',therapist:'Dr. Smith',dayIdx:0,timeSlot:4},
+  {patientId:2,name:'Maria L.',type:'Initial evaluation',therapist:'Dr. Chen',dayIdx:1,timeSlot:2},
+  {patientId:3,name:'Tom B.',type:'Sports rehab',therapist:'Dr. Patel',dayIdx:2,timeSlot:6},
+  {patientId:4,name:'Sarah K.',type:'Dry needling',therapist:'Dr. Smith',dayIdx:3,timeSlot:8},
+  {patientId:5,name:'Alex M.',type:'Post-surgical rehab',therapist:'Dr. Chen',dayIdx:4,timeSlot:3},
+];
+
+let weekOffset=0,activeTherapist='All',editMode=false;
+
+// ---- Waitlist ----
+let waitlist = [
+  {id:'wl1', name:'Chris Taylor', phone:'555-0201', type:'Initial evaluation', therapist:'', status:'waiting', addedDate:'Today', offeredSlot:null, offeredAt:null, timeoutId:null},
+  {id:'wl2', name:'Diana Park',   phone:'555-0202', type:'Follow-up visit',    therapist:'Dr. Smith', status:'waiting', addedDate:'Today', offeredSlot:null, offeredAt:null, timeoutId:null},
+];
+
+function toggleWaitlist(e){
+  e.stopPropagation();
+  document.getElementById('wl-dropdown').classList.toggle('open');
+  renderWaitlist();
+}
+document.addEventListener('click', ()=>{ document.getElementById('wl-dropdown').classList.remove('open'); });
+document.getElementById('wl-dropdown').addEventListener('click', e=>e.stopPropagation());
+
+function toggleWlForm(){
+  const f=document.getElementById('wl-add-form');
+  f.classList.toggle('open');
+}
+
+function adminAddToWaitlist(){
+  const name=document.getElementById('wl-name-inp').value.trim();
+  const phone=document.getElementById('wl-phone-inp').value.trim();
+  const type=document.getElementById('wl-type-sel').value;
+  const therapist=document.getElementById('wl-therapist-sel').value;
+  if(!name||!phone){alert('Please enter a name and phone number.');return;}
+  addToWaitlist(name,phone,type,therapist);
+  document.getElementById('wl-name-inp').value='';
+  document.getElementById('wl-phone-inp').value='';
+  document.getElementById('wl-type-sel').value='';
+  document.getElementById('wl-therapist-sel').value='';
+  document.getElementById('wl-add-form').classList.remove('open');
+}
+
+function addToWaitlist(name, phone, type, therapist){
+  waitlist.push({id:'wl'+Date.now(), name, phone, type:type||'', therapist:therapist||'', status:'waiting', addedDate:'Today', offeredSlot:null, offeredAt:null, timeoutId:null});
+  renderWaitlist();
+  updateWlBadge();
+}
+
+function updateWlBadge(){
+  const waiting=waitlist.filter(w=>w.status==='waiting'||w.status==='offered').length;
+  const badge=document.getElementById('wl-badge');
+  badge.textContent=waiting;
+  badge.className=waiting>0?'has-entries':'';
+}
+
+function renderWaitlist(){
+  const list=document.getElementById('wl-list');
+  const empty=document.getElementById('wl-empty');
+  list.innerHTML='';
+  if(waitlist.length===0){empty.style.display='block';updateWlBadge();return;}
+  empty.style.display='none';
+  waitlist.forEach(w=>{
+    const div=document.createElement('div');div.className='wl-item';
+    const typeLabel=w.type||'Any type';
+    const therapistLabel=w.therapist||'Any therapist';
+    const timeLeft=w.status==='offered'&&w.offeredAt?getTimeLeft(w.offeredAt):'';
+    div.innerHTML=`
+      <div class="wl-item-left">
+        <div class="wl-item-name">${w.name}</div>
+        <div class="wl-item-meta">${w.phone} &middot; ${typeLabel} &middot; ${therapistLabel}</div>
+        ${w.status==='offered'&&w.offeredSlot?`<div class="wl-item-meta" style="color:var(--amber);">Offered: ${w.offeredSlot}${timeLeft?' · '+timeLeft+' left':''}</div>`:''}
+        <span class="wl-item-status ${w.status}">${w.status==='offered'?'SMS sent — awaiting reply':w.status}</span>
+      </div>
+      <div class="wl-item-actions">
+        ${w.status==='offered'?`<button class="wl-action-btn accept" onclick="simulateAccept('${w.id}')">Accept ✓</button><button class="wl-action-btn decline" onclick="simulateDecline('${w.id}')">Decline ✗</button>`:''}
+        ${w.status==='waiting'?`<button class="wl-action-btn" onclick="removeFromWaitlist('${w.id}')">Remove</button>`:''}
+        ${w.status==='accepted'||w.status==='declined'?`<button class="wl-action-btn" onclick="removeFromWaitlist('${w.id}')">Clear</button>`:''}
+      </div>`;
+    list.appendChild(div);
+  });
+  updateWlBadge();
+}
+
+function getTimeLeft(offeredAt){
+  const elapsed=Math.floor((Date.now()-offeredAt)/1000/60);
+  const remaining=30-elapsed;
+  if(remaining<=0)return'expired';
+  return remaining+'m';
+}
+
+function removeFromWaitlist(id){
+  const idx=waitlist.findIndex(w=>w.id===id);
+  if(idx>-1){if(waitlist[idx].timeoutId)clearTimeout(waitlist[idx].timeoutId);waitlist.splice(idx,1);}
+  renderWaitlist();
+}
+
+// Called when a cancellation happens — find best match and offer slot
+function offerSlotToWaitlist(cancelledAppt){
+  // First try to match by appointment type, then fall back to any type
+  let match=waitlist.find(w=>w.status==='waiting'&&(w.type===cancelledAppt.type||w.type===''));
+  if(!match) match=waitlist.find(w=>w.status==='waiting');
+  if(!match)return;
+
+  const dates=getWeekDates(),d=dates[cancelledAppt.dayIdx];
+  const[h,m]=HOURS[cancelledAppt.timeSlot].split(':').map(Number);
+  const ampm=h>=12?'pm':'am',h12=h>12?h-12:h;
+  const slotStr=`${d.label} ${d.month} ${d.date} at ${h12}:${m===0?'00':m}${ampm} with ${cancelledAppt.therapist}`;
+
+  match.status='offered';
+  match.offeredSlot=slotStr;
+  match.offeredAt=Date.now();
+  match.pendingApptType=cancelledAppt.type;
+  match.pendingDayIdx=cancelledAppt.dayIdx;
+  match.pendingTimeSlot=cancelledAppt.timeSlot;
+  match.pendingTherapist=cancelledAppt.therapist;
+
+  // Simulate SMS notification
+  addMsg('system',`SMS sent to ${match.name} (${match.phone}): "${cancelledAppt.type} slot available — ${slotStr}. Reply YES to confirm or NO to decline."`);
+
+  // Auto-expire after 30 minutes (use 30s in demo for visibility)
+  match.timeoutId=setTimeout(()=>{
+    const w=waitlist.find(x=>x.id===match.id);
+    if(w&&w.status==='offered'){
+      w.status='declined';
+      addMsg('system',`No response from ${w.name} — slot offered to next patient on waitlist`);
+      // Try next patient
+      const nextCancelledAppt={type:w.pendingApptType,dayIdx:w.pendingDayIdx,timeSlot:w.pendingTimeSlot,therapist:w.pendingTherapist};
+      offerSlotToWaitlist(nextCancelledAppt);
+      renderWaitlist();
+    }
+  }, 30000); // 30s demo (represents 30min real-world)
+
+  renderWaitlist();
+  // Open dropdown to show notification
+  document.getElementById('wl-dropdown').classList.add('open');
+}
+
+function simulateAccept(id){
+  const w=waitlist.find(x=>x.id===id);
+  if(!w||w.status!=='offered')return;
+  if(w.timeoutId)clearTimeout(w.timeoutId);
+  w.status='accepted';
+  // Auto-book the appointment
+  const patientRecord=patients.find(p=>p.fullName===w.name)||{id:Date.now(),fullName:w.name,phone:w.phone,email:'',dob:'',visits:1,insurance:'',insuranceId:'',referralStatus:'not collected',referralDr:'',notes:'Booked from waitlist.',timeline:[{type:'new',date:'Today',desc:'Added via waitlist'}]};
+  if(!patients.find(p=>p.id===patientRecord.id))patients.push(patientRecord);
+  const shortName=w.name.split(' ')[0]+' '+(w.name.split(' ')[1]||'')[0]+'.';
+  appointments.push({patientId:patientRecord.id,name:shortName,type:w.pendingApptType,therapist:w.pendingTherapist,dayIdx:w.pendingDayIdx,timeSlot:w.pendingTimeSlot});
+  patientRecord.timeline=patientRecord.timeline||[];patientRecord.timeline.push({type:'appt',date:'Today',desc:`${w.pendingApptType} — ${w.pendingTherapist} (waitlist fill)`});if(typeof sendIntakeFormOnBooking==='function')sendIntakeFormOnBooking(patientRecord,w.pendingApptType);
+  renderCalendar();
+  addMsg('system',`✓ ${w.name} confirmed — appointment auto-booked & admin notified`);
+  renderWaitlist();
+}
+
+function simulateDecline(id){
+  const w=waitlist.find(x=>x.id===id);
+  if(!w)return;
+  if(w.timeoutId)clearTimeout(w.timeoutId);
+  w.status='declined';
+  addMsg('system',`${w.name} declined — offering slot to next patient`);
+  const next={type:w.pendingApptType,dayIdx:w.pendingDayIdx,timeSlot:w.pendingTimeSlot,therapist:w.pendingTherapist};
+  renderWaitlist();
+  setTimeout(()=>offerSlotToWaitlist(next),500);
+}
+let conversation=[],callActive=false,pendingAppt={},highlightedSlots=[],recognizedPatient=null;
+let pendingModalCtx={},selectedDurSlots=1;
+let activeSidebarId=null,activeSTab='info';
+
+// Sidebar
+function openSidebar(pid){
+  activeSidebarId=pid;const p=patients.find(x=>x.id===pid);if(!p)return;
+  const init=p.fullName.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('sidebar-avatar').textContent=init;
+  document.getElementById('sidebar-patient-name').textContent=p.fullName;
+  const upc=appointments.filter(a=>a.patientId===pid).length;
+  document.getElementById('sidebar-patient-sub').textContent=`${p.visits} total visits · ${upc} upcoming`;
+  document.getElementById('patient-sidebar').classList.add('open');
+  document.querySelectorAll('.stab').forEach((b,i)=>{b.classList.toggle('active',i===0);});
+  activeSTab='info'; renderSidebarTab('info',p);
+}
+function closeSidebar(){document.getElementById('patient-sidebar').classList.remove('open');activeSidebarId=null;}
+function switchSTab(tab,btn){
+  activeSTab=tab;document.querySelectorAll('.stab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  const p=patients.find(x=>x.id===activeSidebarId);if(p)renderSidebarTab(tab,p);
+}
+function renderSidebarTab(tab,p){
+  const body=document.getElementById('sidebar-body');body.innerHTML='';
+  if(tab==='info'){
+    const ua=appointments.filter(a=>a.patientId===p.id);
+    body.innerHTML=`<div class="s-section"><div class="s-label">Contact</div>
+      <div class="s-row"><span class="s-key">Phone</span><span class="s-val">${p.phone}</span></div>
+      <div class="s-row"><span class="s-key">Email</span><span class="s-val">${p.email}</span></div>
+      <div class="s-row"><span class="s-key">Date of birth</span><span class="s-val">${p.dob||'—'}</span></div>
+    </div>
+    <div class="s-section"><div class="s-label">Upcoming appointments</div>
+      ${ua.length===0?'<div style="font-size:12px;color:var(--text3);">None scheduled</div>':
+      ua.map(a=>`<div class="upcoming-card"><div class="upcoming-top"><span class="upcoming-type">${a.type}</span><span class="upcoming-therapist">${a.therapist}</span></div><div class="upcoming-time">${DAYS[a.dayIdx]} · ${HOURS[a.timeSlot]}</div></div>`).join('')}
+    </div>`;
+  } else if(tab==='insurance'){
+    const rp=p.referralStatus==='on file'?'green':p.referralStatus==='self-referral'?'blue':p.referralStatus==='pending'?'amber':'red';
+    body.innerHTML=`<div class="s-section"><div class="s-label">Insurance</div>
+      <div class="s-row"><span class="s-key">Type</span><span class="s-val">${p.insurance||'—'}</span></div>
+      <div class="s-row"><span class="s-key">Policy #</span><span class="s-val">${p.insuranceId||'—'}</span></div>
+    </div>
+    <div class="s-section"><div class="s-label">Referral</div>
+      <div class="s-row"><span class="s-key">Status</span><span class="s-pill ${rp}">${p.referralStatus||'not collected'}</span></div>
+      <div class="s-row"><span class="s-key">${p.referralStatus==='self-referral'?'Chief complaint':'Referring physician'}</span><span class="s-val">${p.referralDr||'—'}</span></div>
+    </div>
+    <div class="s-label">Edit</div>
+    <div class="ins-edit">
+      <select id="ins-type-sel">${INS_TYPES.map(t=>`<option${p.insurance===t?' selected':''}>${t}</option>`).join('')}</select>
+      <input type="text" id="ins-id-inp" placeholder="Policy / ID #" value="${p.insuranceId||''}"/>
+      <select id="ref-status-sel">
+        <option${p.referralStatus==='on file'?' selected':''}>on file</option>
+        <option${p.referralStatus==='self-referral'?' selected':''}>self-referral</option>
+        <option${p.referralStatus==='pending'?' selected':''}>pending</option>
+        <option${p.referralStatus==='not collected'?' selected':''}>not collected</option>
+      </select>
+      <input type="text" id="ref-dr-inp" placeholder="Referring physician or chief complaint" value="${p.referralDr||''}"/>
+      <button class="ins-save" onclick="saveInsurance(${p.id})">Save changes</button>
+    </div>`;
+  } else if(tab==='timeline'){
+    const tl=[...p.timeline].reverse();
+    body.innerHTML=tl.map((item,i)=>`<div class="timeline-item">
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div class="tl-dot ${item.type}"></div>
+        ${i<tl.length-1?'<div class="tl-line" style="height:28px;"></div>':''}
+      </div>
+      <div><div class="tl-title">${item.desc}</div><div class="tl-meta">${item.date}</div></div>
+    </div>`).join('');
+  } else if(tab==='soap'){
+    const notes=(p.soapNotes||[]).slice().reverse();
+    body.innerHTML=`
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'eval',null)">+ Initial evaluation</button>
+        <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'progress',null)">+ Progress note</button>
+        <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'discharge',null)">+ Discharge summary</button>
+      </div>
+      <div class="s-label">Note history</div>
+      ${notes.length===0?'<div style="font-size:12px;color:var(--text3);padding:6px 0;">No notes yet</div>':
+        notes.map(n=>`<div class="soap-note-card">
+          <div class="soap-note-card-top">
+            <span class="soap-note-card-type">${n.type==='eval'?'Initial evaluation':n.type==='progress'?'Progress note':'Discharge summary'}</span>
+            <span class="soap-note-card-date">${n.date}</span>
+          </div>
+          <div class="soap-note-card-meta">${n.therapist||''}${n.credentials?' · '+n.credentials:''}</div>
+          <span class="soap-note-card-status ${n.signed?'signed':'draft'}">${n.signed?'Signed & finalized':'Draft'}</span>
+          <div class="soap-note-card-actions">
+            <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'${n.type}','${n.id}')">
+              ${n.signed?'View note':'Edit note'}
+            </button>
+          </div>
+        </div>`).join('')
+      }`;
+  } else if(tab==='soap'){
+    const notes=(p.soapNotes||[]).slice().reverse();
+    const noteTypes={eval:'Initial evaluation',progress:'Progress note',discharge:'Discharge summary'};
+    const noteBtns='<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;"><button class="soap-note-card-btn primary" onclick="openSoapModal('+p.id+',\'eval\',null)">+ Initial eval</button><button class="soap-note-card-btn primary" onclick="openSoapModal('+p.id+',\'progress\',null)">+ Progress note</button><button class="soap-note-card-btn primary" onclick="openSoapModal('+p.id+',\'discharge\',null)">+ Discharge</button></div>';
+    const noteCards=notes.length===0?'<div style="font-size:12px;color:var(--text3);padding:6px 0;">No notes yet</div>':notes.map(n=>'<div class="soap-note-card"><div class="soap-note-card-top"><span class="soap-note-card-type">'+(noteTypes[n.type]||n.type)+'</span><span class="soap-note-card-date">'+n.date+'</span></div><div class="soap-note-card-meta">'+(n.therapist||'')+(n.credentials?' &middot; '+n.credentials:'')+'</div><span class="soap-note-card-status '+(n.signed?'signed':'draft')+'">'+(n.signed?'Signed &amp; finalized':'Draft')+'</span><div class="soap-note-card-actions"><button class="soap-note-card-btn primary" onclick="openSoapModal('+p.id+',\''+n.type+'\',\''+n.id+'\')">'+(n.signed?'View note':'Edit note')+'</button></div></div>').join('');
+    body.innerHTML=noteBtns+'<div class="s-label">Note history</div>'+noteCards;
+  } else if(tab==='forms'){
+    const forms=p.forms||[];
+    const suggested=suggestForm(p);
+    body.innerHTML=`
+      <div class="s-label">Assign intake form</div>
+      <div class="form-assign-row">
+        <select id="form-assign-sel">
+          <option value="">-- Select form --</option>
+          <option value="quickdash"${suggested==='quickdash'?' selected':''}>QuickDASH (arm/shoulder/hand)</option>
+          <option value="dash"${suggested==='dash'?' selected':''}>DASH (full)</option>
+          <option value="ndi"${suggested==='ndi'?' selected':''}>Neck Disability Index</option>
+          <option value="lefs"${suggested==='lefs'?' selected':''}>LEFS (lower extremity)</option>
+          <option value="oswestry"${suggested==='oswestry'?' selected':''}>Oswestry (low back)</option>
+          <option value="faam"${suggested==='faam'?' selected':''}>FAAM (foot & ankle)</option>
+          <option value="koos"${suggested==='koos'?' selected':''}>KOOS (knee)</option>
+          <option value="hoos"${suggested==='hoos'?' selected':''}>HOOS (hip)</option>
+          <option value="psfs"${suggested==='psfs'?' selected':''}>PSFS (patient-specific)</option>
+        </select>
+        <button onclick="assignAndSendForm(${p.id})">Send via SMS</button>
+      </div>
+      ${suggested?`<div style="font-size:11px;color:var(--blue);margin-bottom:10px;">&#9432; Suggested based on chief complaint: <strong>${FORM_NAMES[suggested]}</strong></div>`:''}
+      <div class="s-label" style="margin-top:4px;">Form history</div>
+      ${forms.length===0?'<div style="font-size:12px;color:var(--text3);padding:6px 0;">No forms sent yet</div>':
+        forms.map(f=>`<div class="form-card">
+          <div class="form-card-top">
+            <span class="form-card-name">${FORM_NAMES[f.formKey]||f.formKey}</span>
+            <span class="form-card-status ${f.completed?'completed':f.sent?'sent':'pending'}">${f.completed?'Completed':f.sent?'Sent — awaiting':'Pending'}</span>
+          </div>
+          <div class="form-card-meta">Sent ${f.sentDate}${f.completedDate?' · Completed '+f.completedDate:''}</div>
+          <div class="form-card-actions">
+            ${f.completed?`<button class="form-card-btn primary" onclick="viewFormResults(${p.id},'${f.id}')">View results</button>`:''}
+            <button class="form-card-btn" onclick="simulateFormComplete(${p.id},'${f.id}')">Simulate completion</button>
+            <button class="form-card-btn" onclick="resendForm(${p.id},'${f.id}')">Resend SMS</button>
+          </div>
+        </div>`).join('')
+      }`;
+  } else if(tab==='soap'){
+    const notes=(p.soapNotes||[]).slice().reverse();
+    body.innerHTML=`
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'eval',null)">+ Initial evaluation</button>
+        <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'progress',null)">+ Progress note</button>
+        <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'discharge',null)">+ Discharge summary</button>
+      </div>
+      <div class="s-label">Note history</div>
+      ${notes.length===0?'<div style="font-size:12px;color:var(--text3);padding:6px 0;">No notes yet</div>':
+        notes.map(n=>`<div class="soap-note-card">
+          <div class="soap-note-card-top">
+            <span class="soap-note-card-type">${n.type==='eval'?'Initial evaluation':n.type==='progress'?'Progress note':'Discharge summary'}</span>
+            <span class="soap-note-card-date">${n.date}</span>
+          </div>
+          <div class="soap-note-card-meta">${n.therapist||''}${n.credentials?' · '+n.credentials:''}</div>
+          <span class="soap-note-card-status ${n.signed?'signed':'draft'}">${n.signed?'Signed & finalized':'Draft'}</span>
+          <div class="soap-note-card-actions">
+            <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'${n.type}','${n.id}')">
+              ${n.signed?'View note':'Edit note'}
+            </button>
+          </div>
+        </div>`).join('')
+      }`;
+  } else if(tab==='forms'){
+    const forms=p.forms||[];
+    const suggested=suggestForm(p);
+    body.innerHTML=`
+      <div class="s-label">Assign intake form</div>
+      <div class="form-assign-row">
+        <select id="form-assign-sel">
+          <option value="">-- Select form --</option>
+          <option value="quickdash"${suggested==='quickdash'?' selected':''}>QuickDASH (arm/shoulder/hand)</option>
+          <option value="dash"${suggested==='dash'?' selected':''}>DASH (full)</option>
+          <option value="ndi"${suggested==='ndi'?' selected':''}>Neck Disability Index</option>
+          <option value="lefs"${suggested==='lefs'?' selected':''}>LEFS (lower extremity)</option>
+          <option value="oswestry"${suggested==='oswestry'?' selected':''}>Oswestry (low back)</option>
+          <option value="faam"${suggested==='faam'?' selected':''}>FAAM (foot & ankle)</option>
+          <option value="koos"${suggested==='koos'?' selected':''}>KOOS (knee)</option>
+          <option value="hoos"${suggested==='hoos'?' selected':''}>HOOS (hip)</option>
+          <option value="psfs"${suggested==='psfs'?' selected':''}>PSFS (patient-specific)</option>
+        </select>
+        <button onclick="assignAndSendForm(${p.id})">Send via SMS</button>
+      </div>
+      ${suggested?'<div style=\"font-size:11px;color:var(--blue);margin-bottom:10px;\">&#9432; Suggested: <strong>'+FORM_NAMES[suggested]+'</strong> based on chief complaint</div>':''}
+      <div class="s-label" style="margin-top:4px;">Form history</div>
+      ${forms.length===0?'<div style=\"font-size:12px;color:var(--text3);padding:6px 0;\">No forms sent yet</div>':
+        forms.map(f=>'<div class=\"form-card\"><div class=\"form-card-top\"><span class=\"form-card-name\">'+( FORM_NAMES[f.formKey]||f.formKey)+'</span><span class=\"form-card-status '+(f.completed?'completed':f.sent?'sent':'pending')+'\">'+(f.completed?'Completed':f.sent?'Sent — awaiting':'Pending')+'</span></div><div class=\"form-card-meta\">Sent '+f.sentDate+(f.completedDate?' · Completed '+f.completedDate:'')+'</div><div class=\"form-card-actions\">'+(f.completed?'<button class=\"form-card-btn primary\" onclick=\"viewFormResults('+p.id+',\''+f.id+'\')\">View results</button>':'')+'<button class=\"form-card-btn\" onclick=\"simulateFormComplete('+p.id+',\''+f.id+'\')\">Simulate completion</button><button class=\"form-card-btn\" onclick=\"resendForm('+p.id+',\''+f.id+'\')\">Resend SMS</button></div></div>').join('')
+      }`;
+  } else if(tab==='soap'){
+    const notes=(p.soapNotes||[]).slice().reverse();
+    body.innerHTML=`
+      <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'eval',null)">+ Initial evaluation</button>
+        <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'progress',null)">+ Progress note</button>
+        <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'discharge',null)">+ Discharge summary</button>
+      </div>
+      <div class="s-label">Note history</div>
+      ${notes.length===0?'<div style="font-size:12px;color:var(--text3);padding:6px 0;">No notes yet</div>':
+        notes.map(n=>`<div class="soap-note-card">
+          <div class="soap-note-card-top">
+            <span class="soap-note-card-type">${n.type==='eval'?'Initial evaluation':n.type==='progress'?'Progress note':'Discharge summary'}</span>
+            <span class="soap-note-card-date">${n.date}</span>
+          </div>
+          <div class="soap-note-card-meta">${n.therapist||''}${n.credentials?' · '+n.credentials:''}</div>
+          <span class="soap-note-card-status ${n.signed?'signed':'draft'}">${n.signed?'Signed & finalized':'Draft'}</span>
+          <div class="soap-note-card-actions">
+            <button class="soap-note-card-btn primary" onclick="openSoapModal(${p.id},'${n.type}','${n.id}')">
+              ${n.signed?'View note':'Edit note'}
+            </button>
+          </div>
+        </div>`).join('')
+      }`;
+  } else if(tab==='forms'){
+    const forms=p.forms||[];
+    const suggested=suggestForm(p);
+    const sugLabel=suggested?'<div style="font-size:11px;color:var(--blue);margin-bottom:10px;">&#9432; Suggested: <strong>'+FORM_NAMES[suggested]+'</strong> based on chief complaint</div>':'';
+    const fCards=forms.length===0?'<div style="font-size:12px;color:var(--text3);padding:6px 0;">No forms sent yet</div>':forms.map(f=>{
+      const nm=FORM_NAMES[f.formKey]||f.formKey;
+      const st=f.completed?'completed':f.sent?'sent':'pending';
+      const stLabel=f.completed?'Completed':f.sent?'Sent \u2014 awaiting':'Pending';
+      const viewBtn=f.completed?`<button class="form-card-btn primary" onclick="viewFormResults(${p.id},'${f.id}')">View results</button>`:'';
+      return `<div class="form-card"><div class="form-card-top"><span class="form-card-name">${nm}</span><span class="form-card-status ${st}">${stLabel}</span></div><div class="form-card-meta">Sent ${f.sentDate}${f.completedDate?' &middot; Completed '+f.completedDate:''}</div><div class="form-card-actions">${viewBtn}<button class="form-card-btn" onclick="simulateFormComplete(${p.id},'${f.id}')">Simulate completion</button><button class="form-card-btn" onclick="resendForm(${p.id},'${f.id}')">Resend SMS</button></div></div>`;
+    }).join('');
+    body.innerHTML=`<div class="s-label">Assign intake form</div>
+      <div class="form-assign-row">
+        <select id="form-assign-sel">
+          <option value="">-- Select form --</option>
+          <option value="quickdash"${suggested==='quickdash'?' selected':''}>QuickDASH (arm/shoulder/hand)</option>
+          <option value="dash"${suggested==='dash'?' selected':''}>DASH (full)</option>
+          <option value="ndi"${suggested==='ndi'?' selected':''}>Neck Disability Index</option>
+          <option value="lefs"${suggested==='lefs'?' selected':''}>LEFS (lower extremity)</option>
+          <option value="oswestry"${suggested==='oswestry'?' selected':''}>Oswestry (low back)</option>
+          <option value="faam"${suggested==='faam'?' selected':''}>FAAM (foot &amp; ankle)</option>
+          <option value="koos"${suggested==='koos'?' selected':''}>KOOS (knee)</option>
+          <option value="hoos"${suggested==='hoos'?' selected':''}>HOOS (hip)</option>
+          <option value="psfs"${suggested==='psfs'?' selected':''}>PSFS (patient-specific)</option>
+        </select>
+        <button onclick="assignAndSendForm(${p.id})">Send via SMS</button>
+      </div>
+      ${sugLabel}
+      <div class="s-label" style="margin-top:4px;">Form history</div>
+      ${fCards}`;
+  } else if(tab==='notes'){
+    body.innerHTML=`<div class="s-label">Clinical notes</div>
+      <textarea class="notes-area" id="notes-inp" placeholder="Add notes...">${p.notes||''}</textarea>
+      <button class="notes-save" onclick="saveNotes(${p.id})">Save notes</button>`;
+  }
+}
+function saveInsurance(id){const p=patients.find(x=>x.id===id);if(!p)return;p.insurance=document.getElementById('ins-type-sel').value;p.insuranceId=document.getElementById('ins-id-inp').value.trim();p.referralStatus=document.getElementById('ref-status-sel').value;p.referralDr=document.getElementById('ref-dr-inp').value.trim();renderSidebarTab('insurance',p);}
+function saveNotes(id){const p=patients.find(x=>x.id===id);if(p)p.notes=document.getElementById('notes-inp').value;}
+
+// Calendar
+// ===== INTAKE FORMS ENGINE =====
+
+const FORM_NAMES = {
+  quickdash:'QuickDASH', dash:'DASH', ndi:'Neck Disability Index',
+  lefs:'LEFS', oswestry:'Oswestry', faam:'FAAM', koos:'KOOS',
+  hoos:'HOOS', psfs:'PSFS'
+};
+
+// Keyword → form mapping for auto-suggestion
+function suggestForm(p) {
+  const cc = (p.referralDr||'').toLowerCase() + ' ' + (p.notes||'').toLowerCase();
+  if (!cc.trim()) return '';
+  if (cc.match(/neck|cervical/)) return 'ndi';
+  if (cc.match(/shoulder|arm|wrist|hand|elbow|upper extremity|rotator/)) return 'quickdash';
+  if (cc.match(/ankle|foot|achilles|plantar/)) return 'faam';
+  if (cc.match(/knee|patellar|acl|mcl/)) return 'koos';
+  if (cc.match(/hip/)) return 'hoos';
+  if (cc.match(/back|lumbar|spine|sciatica/)) return 'oswestry';
+  if (cc.match(/lower extremity|leg|shin|hamstring/)) return 'lefs';
+  return 'psfs';
+}
+
+// All form definitions — clinically accurate questions & scoring
+const FORMS = {
+  quickdash: {
+    name:'QuickDASH', abbr:'QuickDASH',
+    intro:'Please rate your ability to do the following activities in the last week. Circle the number that best describes your ability.',
+    scoreMax:100,
+    questions:[
+      {text:'Open a tight or new jar',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Do heavy household chores (e.g. wash walls, floors)',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Carry a shopping bag or briefcase',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Wash your back',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Use a knife to cut food',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Recreational activities which require little effort (e.g. card playing, knitting)',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Your arm, shoulder or hand problem interfered with your normal social activities with family, friends, neighbours or groups',opts:['Not at all','Slightly','Moderately','Quite a bit','Extremely']},
+      {text:'You had limitations in your work or other regular daily activities as a result of your arm, shoulder or hand problem',opts:['Not at all','Slightly','Moderately','Quite a bit','Unable']},
+      {text:'Arm, shoulder or hand pain',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Tingling (pins and needles) in your arm, shoulder or hand',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'During the past week, how much difficulty have you had sleeping due to the pain in your arm, shoulder or hand?',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','So much difficulty that I cannot sleep']},
+    ],
+    score:(answers)=>{
+      const sum=answers.reduce((a,v)=>a+v,0);
+      return Math.round(((sum/answers.length)-1)/4*100);
+    },
+    interpret:(s)=>s<=25?'Minimal disability':s<=50?'Mild disability':s<=75?'Moderate disability':'Severe disability',
+    interpClass:(s)=>s<=25?'minimal':s<=50?'mild':s<=75?'moderate':'severe',
+  },
+  ndi: {
+    name:'Neck Disability Index', abbr:'NDI',
+    intro:'This questionnaire has been designed to give your therapist information about how your neck pain has affected your ability to manage in everyday life.',
+    scoreMax:100,
+    questions:[
+      {text:'Pain Intensity',opts:['I have no pain at present','The pain is very mild at present','The pain is moderate at present','The pain is fairly severe at present','The pain is very severe at present','The pain is the worst imaginable at present']},
+      {text:'Personal Care (washing, dressing, etc.)',opts:['I can look after myself normally without causing extra pain','I can look after myself normally but it causes extra pain','It is painful to look after myself and I am slow and careful','I need some help but can manage most of my personal care','I need help every day in most aspects of self-care','I do not get dressed, wash with difficulty and stay in bed']},
+      {text:'Lifting',opts:['I can lift heavy weights without extra pain','I can lift heavy weights but it gives extra pain','Pain prevents me from lifting heavy weights off the floor but I can manage if they are conveniently placed','Pain prevents me from lifting heavy weights but I can manage light to medium weights','I can lift very light weights','I cannot lift or carry anything at all']},
+      {text:'Reading',opts:['I can read as much as I want with no pain in my neck','I can read as much as I want with slight pain in my neck','I can read as much as I want with moderate pain','I cannot read as much as I want because of moderate pain','I can hardly read at all because of severe pain','I cannot read at all']},
+      {text:'Headaches',opts:['I have no headaches at all','I have slight headaches which come infrequently','I have moderate headaches which come infrequently','I have moderate headaches which come frequently','I have severe headaches which come frequently','I have headaches almost all the time']},
+      {text:'Concentration',opts:['I can concentrate fully with no difficulty','I can concentrate fully with slight difficulty','I have a fair degree of difficulty concentrating','I have a lot of difficulty concentrating','I have a great deal of difficulty concentrating','I cannot concentrate at all']},
+      {text:'Work',opts:['I can do as much work as I want','I can only do my usual work but no more','I can do most of my usual work but no more','I cannot do my usual work','I can hardly do any work at all','I cannot do any work at all']},
+      {text:'Driving',opts:['I can drive my car without any neck pain','I can drive my car with slight neck pain','I can drive with moderate neck pain','I cannot drive because of moderate neck pain','I can hardly drive because of severe neck pain','I cannot drive at all']},
+      {text:'Sleeping',opts:['I have no trouble sleeping','My sleep is slightly disturbed (less than 1 hr sleepless)','My sleep is mildly disturbed (1-2 hrs sleepless)','My sleep is moderately disturbed (2-3 hrs sleepless)','My sleep is greatly disturbed (3-5 hrs sleepless)','My sleep is completely disturbed (5-7 hrs sleepless)']},
+      {text:'Recreation',opts:['I am able to engage in all my recreation activities with no neck pain','I am able to engage in most recreation activities with some pain','I can engage in a few of my recreation activities because of pain','I can hardly do any recreation activities because of pain','I can hardly do any recreation activities because of pain','I cannot do any recreation activities at all']},
+    ],
+    score:(answers)=>Math.round(answers.reduce((a,v)=>a+v,0)/50*100),
+    interpret:(s)=>s<=8?'No disability':s<=28?'Mild disability':s<=48?'Moderate disability':s<=64?'Severe disability':'Complete disability',
+    interpClass:(s)=>s<=8?'minimal':s<=28?'mild':s<=48?'moderate':s<=64?'severe':'complete',
+  },
+  lefs: {
+    name:'Lower Extremity Functional Scale', abbr:'LEFS',
+    intro:'We are interested in knowing whether you are having any difficulty at all with the activities listed. Please rate your current level of difficulty.',
+    scoreMax:80,
+    questions:[
+      {text:'Any of your usual work, housework, or school activities',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Your usual hobbies, recreational or sporting activities',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Getting into or out of the bath',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Walking between rooms',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Putting on your shoes or socks',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Squatting',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Lifting an object, like a bag of groceries from the floor',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Performing light activities around your home',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Performing heavy activities around your home',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Getting into or out of a car',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Walking 2 blocks',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Walking a mile',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Going up or down 10 stairs',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Standing for 1 hour',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Sitting for 1 hour',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Running on even ground',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Running on uneven ground',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Making sharp turns while running fast',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Hopping',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+      {text:'Rolling over in bed',opts:['Extreme difficulty or unable','Quite a bit of difficulty','Moderate difficulty','A little bit of difficulty','No difficulty']},
+    ],
+    score:(answers)=>answers.reduce((a,v)=>a+v,0),
+    interpret:(s)=>s>=74?'Minimal disability':s>=54?'Mild disability':s>=34?'Moderate disability':'Severe disability',
+    interpClass:(s)=>s>=74?'minimal':s>=54?'mild':s>=34?'moderate':'severe',
+  },
+  oswestry: {
+    name:'Oswestry Low Back Disability Index', abbr:'Oswestry',
+    intro:'Please read each section carefully. In each section only tick the ONE box which applies to you at this present time.',
+    scoreMax:100,
+    questions:[
+      {text:'Pain Intensity',opts:['I can tolerate the pain without having to use pain killers','The pain is bad but I manage without taking pain killers','Pain killers give complete relief from pain','Pain killers give moderate relief from pain','Pain killers give very little relief from pain','Pain killers have no effect on the pain']},
+      {text:'Personal Care (washing, dressing, etc.)',opts:['I can look after myself normally without causing extra pain','I can look after myself normally but it is very painful','It is painful to look after myself and I am slow and careful','I need some help but manage most of my personal care','I need help every day in most aspects of self care','I do not get dressed, wash with difficulty and stay in bed']},
+      {text:'Lifting',opts:['I can lift heavy weights without extra pain','I can lift heavy weights but it gives extra pain','Pain prevents me lifting heavy weights off the floor','Pain prevents me lifting heavy weights off the floor, but I can manage if they are conveniently positioned','Pain prevents me from lifting heavy weights but I can manage light to medium weights','I can only lift very light weights at the most']},
+      {text:'Walking',opts:['Pain does not prevent me walking any distance','Pain prevents me walking more than 1 mile','Pain prevents me walking more than 1/2 mile','Pain prevents me walking more than 1/4 mile','I can only walk using a stick or crutches','I am in bed most of the time and have to crawl to the toilet']},
+      {text:'Sitting',opts:['I can sit in any chair as long as I like','I can only sit in my favourite chair as long as I like','Pain prevents me sitting more than 1 hour','Pain prevents me from sitting more than 30 minutes','Pain prevents me from sitting more than 10 minutes','Pain prevents me from sitting at all']},
+      {text:'Standing',opts:['I can stand as long as I want without extra pain','I can stand as long as I want but it gives me extra pain','Pain prevents me from standing for more than 1 hour','Pain prevents me from standing for more than 30 minutes','Pain prevents me from standing for more than 10 minutes','Pain prevents me from standing at all']},
+      {text:'Sleeping',opts:['My sleep is never disturbed by pain','My sleep is occasionally disturbed by pain','Because of pain I have less than 6 hours sleep','Because of pain I have less than 4 hours sleep','Because of pain I have less than 2 hours sleep','Pain prevents me from sleeping at all']},
+      {text:'Sex Life',opts:['My sex life is normal and causes no extra pain','My sex life is normal but causes some extra pain','My sex life is nearly normal but is very painful','My sex life is severely restricted by pain','My sex life is nearly absent because of pain','Pain prevents any sex life at all']},
+      {text:'Social Life',opts:['My social life is normal and gives me no extra pain','My social life is normal but increases the degree of pain','Pain has no significant effect on my social life apart from limiting my more energetic interests','Pain has restricted my social life and I do not go out as often','Pain has restricted my social life to my home','I have no social life because of pain']},
+      {text:'Travelling',opts:['I can travel anywhere without pain','I can travel anywhere but it gives me extra pain','Pain is bad but I manage journeys over two hours','Pain restricts me to journeys of less than one hour','Pain restricts me to short necessary journeys under 30 minutes','Pain prevents me from travelling except to receive treatment']},
+    ],
+    score:(answers)=>Math.round(answers.reduce((a,v)=>a+v,0)/50*100),
+    interpret:(s)=>s<=20?'Minimal disability':s<=40?'Moderate disability':s<=60?'Severe disability':s<=80?'Crippling back pain':'Bed-bound',
+    interpClass:(s)=>s<=20?'minimal':s<=40?'mild':s<=60?'moderate':'severe',
+  },
+  faam: {
+    name:'Foot & Ankle Ability Measure', abbr:'FAAM',
+    intro:'Please rate your level of difficulty with each activity over the past week due to your foot and ankle.',
+    scoreMax:100,
+    questions:[
+      {text:'Standing',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Walking on even ground',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Walking on even ground without shoes',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Walking up hills',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Walking down hills',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Going up stairs',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Going down stairs',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Walking on uneven ground',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Stepping up and down curbs',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Squatting',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Coming up on your toes',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Walking initially',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Walking 5 minutes or less',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Walking approximately 10 minutes',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Walking 15 minutes or greater',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Home responsibilities',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Activities of daily living',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Personal care',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Light to moderate work (standing, walking)',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Heavy work (push/pulling, climbing, carrying)',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+      {text:'Recreational activities',opts:['No difficulty','Slight difficulty','Moderate difficulty','Extreme difficulty','Unable to do']},
+    ],
+    score:(answers)=>{const pts=[4,3,2,1,0];const total=answers.reduce((a,v)=>a+(pts[v]||0),0);return Math.round(total/(answers.length*4)*100);},
+    interpret:(s)=>s>=90?'Minimal disability':s>=70?'Mild disability':s>=50?'Moderate disability':'Severe disability',
+    interpClass:(s)=>s>=90?'minimal':s>=70?'mild':s>=50?'moderate':'severe',
+  },
+  koos: {
+    name:'Knee Injury & Osteoarthritis Outcome Score', abbr:'KOOS',
+    intro:'This questionnaire assesses your opinion about your knee. Please answer every question by ticking the appropriate box. If you are unsure about how to answer, please give the best answer you can.',
+    scoreMax:100,
+    questions:[
+      {text:'How often is your knee painful?',opts:['Never','Monthly','Weekly','Daily','Always']},
+      {text:'Pain when twisting/rotating your knee',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain when fully straightening your knee',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain when fully bending your knee',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain when walking on flat surface',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain when going up or down stairs',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain at night while in bed',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain when sitting or lying',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain when standing upright',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Morning stiffness after first wakening',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Stiffness after sitting, lying or resting later in the day',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty descending stairs',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty ascending stairs',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty rising from sitting',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty standing',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty bending to floor/pick up object',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty walking on flat surface',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty getting in/out of car',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty going shopping',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty putting on socks/stockings',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty rising from bed',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty taking off socks/stockings',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty lying in bed (turning over, maintaining position)',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty getting in/out of bath',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty sitting',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty getting on/off toilet',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty with heavy domestic duties',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty with light domestic duties',opts:['None','Mild','Moderate','Severe','Extreme']},
+    ],
+    score:(answers)=>{const total=answers.reduce((a,v)=>a+v,0);return Math.round(100-(total/(answers.length*4)*100));},
+    interpret:(s)=>s>=75?'Minimal symptoms':s>=50?'Mild symptoms':s>=25?'Moderate symptoms':'Severe symptoms',
+    interpClass:(s)=>s>=75?'minimal':s>=50?'mild':s>=25?'moderate':'severe',
+  },
+  hoos: {
+    name:'Hip disability & Osteoarthritis Outcome Score', abbr:'HOOS',
+    intro:'Please answer every question about your hip. If you have more than one problem hip, answer questions for the hip that bothers you most.',
+    scoreMax:100,
+    questions:[
+      {text:'How often is your hip painful?',opts:['Never','Monthly','Weekly','Daily','Always']},
+      {text:'Pain when walking on flat surface',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain when going up or down stairs',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain at night while in bed',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain when sitting or lying',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Pain when standing upright',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Morning stiffness after first wakening',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Stiffness after sitting, lying or resting later in the day',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty descending stairs',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty ascending stairs',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty rising from sitting',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty standing for 30 minutes',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty bending to floor/pick up object',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty walking on flat surface',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty getting in/out of car',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty going shopping',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty putting on socks/stockings',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty rising from bed',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty lying in bed',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty getting in/out of bath',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty sitting',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty with heavy domestic duties',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Difficulty with light domestic duties',opts:['None','Mild','Moderate','Severe','Extreme']},
+    ],
+    score:(answers)=>{const total=answers.reduce((a,v)=>a+v,0);return Math.round(100-(total/(answers.length*4)*100));},
+    interpret:(s)=>s>=75?'Minimal symptoms':s>=50?'Mild symptoms':s>=25?'Moderate symptoms':'Severe symptoms',
+    interpClass:(s)=>s>=75?'minimal':s>=50?'mild':s>=25?'moderate':'severe',
+  },
+  dash: {
+    name:'DASH (Disabilities of the Arm, Shoulder and Hand)', abbr:'DASH',
+    intro:'Please rate your ability to do the following activities in the last week by circling the number below the appropriate response.',
+    scoreMax:100,
+    questions:[
+      {text:'Open a tight or new jar',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Write',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Turn a key',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Prepare a meal',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Push open a heavy door',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Place an object on a shelf above your head',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Do heavy household chores (e.g. wash walls, floors)',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Garden or do yard work',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Make a bed',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Carry a shopping bag or briefcase',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Carry a heavy object (over 10 lbs)',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Change a lightbulb overhead',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Wash or blow dry your hair',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Wash your back',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Put on a pullover sweater',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Use a knife to cut food',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Recreational activities requiring little effort (e.g. card playing, knitting)',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Recreational activities in which you take some force or impact through your arm, shoulder or hand',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Recreational activities in which you move your arm freely',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Manage transportation needs (getting from one place to another)',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'Sexual activities',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','Unable']},
+      {text:'During the past week, to what extent has your arm, shoulder or hand problem interfered with your normal social activities with family, friends, neighbours or groups?',opts:['Not at all','Slightly','Moderately','Quite a bit','Extremely']},
+      {text:'During the past week, were you limited in your work or other regular daily activities as a result of your arm, shoulder or hand problem?',opts:['Not limited at all','Slightly limited','Moderately limited','Very limited','Unable']},
+      {text:'Arm, shoulder or hand pain',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Arm, shoulder or hand pain when you performed any specific activity',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Tingling (pins and needles) in your arm, shoulder or hand',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Weakness in your arm, shoulder or hand',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'Stiffness in your arm, shoulder or hand',opts:['None','Mild','Moderate','Severe','Extreme']},
+      {text:'During the past week, how much difficulty have you had sleeping due to the pain in your arm, shoulder or hand?',opts:['No difficulty','Mild difficulty','Moderate difficulty','Severe difficulty','So much difficulty that I cannot sleep']},
+      {text:'I feel less capable, less confident or less useful because of my arm, shoulder or hand problem',opts:['Strongly disagree','Disagree','Neither agree nor disagree','Agree','Strongly agree']},
+    ],
+    score:(answers)=>{const sum=answers.reduce((a,v)=>a+v,0);return Math.round(((sum/answers.length)-1)/4*100);},
+    interpret:(s)=>s<=25?'Minimal disability':s<=50?'Mild disability':s<=75?'Moderate disability':'Severe disability',
+    interpClass:(s)=>s<=25?'minimal':s<=50?'mild':s<=75?'moderate':'severe',
+  },
+  psfs: {
+    name:'Patient-Specific Functional Scale', abbr:'PSFS',
+    intro:'I am going to ask you to identify up to 3 important activities that you are unable to do or are having difficulty with as a result of your problem. Rate your current ability on a scale from 0 (unable to perform) to 10 (able to perform at same level as before injury).',
+    scoreMax:10,
+    questions:[
+      {text:'Activity 1: (e.g. walking, climbing stairs, lifting) — rate your ability',opts:['0 — Unable','1','2','3','4','5 — Moderate difficulty','6','7','8','9','10 — No difficulty']},
+      {text:'Activity 2 — rate your ability',opts:['0 — Unable','1','2','3','4','5 — Moderate difficulty','6','7','8','9','10 — No difficulty']},
+      {text:'Activity 3 — rate your ability',opts:['0 — Unable','1','2','3','4','5 — Moderate difficulty','6','7','8','9','10 — No difficulty']},
+    ],
+    score:(answers)=>Math.round(answers.reduce((a,v)=>a+v,0)/answers.length),
+    interpret:(s)=>s>=7?'Minimal limitation':s>=5?'Moderate limitation':s>=3?'Significant limitation':'Severe limitation',
+    interpClass:(s)=>s>=7?'minimal':s>=5?'mild':s>=3?'moderate':'severe',
+  },
+};
+
+// Form state
+let activeFormPatientId=null, activeFormId=null, activeFormKey=null;
+let formAnswers=[], formCurrentQ=0;
+
+function assignAndSendForm(patientId){
+  const sel=document.getElementById('form-assign-sel');
+  const formKey=sel.value;
+  if(!formKey){alert('Please select a form first.');return;}
+  const p=patients.find(x=>x.id===patientId);
+  if(!p)return;
+  p.forms=p.forms||[];
+  const fid='form_'+Date.now();
+  p.forms.unshift({id:fid,formKey,sent:true,sentDate:'Today',completed:false,completedDate:null,answers:null,score:null});
+  addMsg('system',`SMS sent to ${p.fullName} (${p.phone}): "Please complete your ${FORM_NAMES[formKey]} intake form before your appointment: [secure-link]"`);
+  renderSidebarTab('forms',p);
+}
+
+function resendForm(patientId,formId){
+  const p=patients.find(x=>x.id===patientId);
+  const f=p&&p.forms&&p.forms.find(x=>x.id===formId);
+  if(!f)return;
+  addMsg('system',`SMS resent to ${p.fullName}: "Reminder — please complete your ${FORM_NAMES[f.formKey]} intake form: [secure-link]"`);
+}
+
+function simulateFormComplete(patientId,formId){
+  // Open the interactive form for demo
+  activeFormPatientId=patientId;
+  activeFormId=formId;
+  const p=patients.find(x=>x.id===patientId);
+  const f=p&&p.forms&&p.forms.find(x=>x.id===formId);
+  if(!f)return;
+  activeFormKey=f.formKey;
+  formAnswers=new Array(FORMS[activeFormKey].questions.length).fill(-1);
+  formCurrentQ=0;
+  openFormModal();
+}
+
+function openFormModal(){
+  const form=FORMS[activeFormKey];
+  document.getElementById('form-modal-title').textContent=form.name;
+  document.getElementById('form-modal-sub').textContent='Patient intake form — please complete all questions';
+  document.getElementById('form-modal-overlay').classList.add('open');
+  renderFormQuestion();
+}
+
+function closeFormModal(){
+  document.getElementById('form-modal-overlay').classList.remove('open');
+}
+
+function renderFormQuestion(){
+  const form=FORMS[activeFormKey];
+  const q=form.questions[formCurrentQ];
+  const total=form.questions.length;
+  const pct=Math.round((formCurrentQ/total)*100);
+  document.getElementById('form-progress-label').textContent=`Question ${formCurrentQ+1} of ${total}`;
+  document.getElementById('form-progress-fill').style.width=pct+'%';
+  document.getElementById('form-back-btn').style.display=formCurrentQ>0?'inline-block':'none';
+  document.getElementById('form-next-btn').textContent=formCurrentQ===total-1?'Submit':'Next';
+
+  const body=document.getElementById('form-modal-body');
+  body.innerHTML=`
+    <div style="font-size:12px;color:var(--text3);margin-bottom:14px;">${form.intro}</div>
+    <div class="form-q">
+      <div class="form-q-text">${formCurrentQ+1}. ${q.text}</div>
+      <div class="form-options">
+        ${q.opts.map((opt,i)=>`
+          <label class="form-option${formAnswers[formCurrentQ]===i?' selected':''}">
+            <input type="radio" name="fq" value="${i}" onchange="selectAnswer(${i})" ${formAnswers[formCurrentQ]===i?'checked':''}/>
+            <span style="width:20px;height:20px;border-radius:50%;border:1.5px solid ${formAnswers[formCurrentQ]===i?'var(--blue)':'var(--border2)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">${formAnswers[formCurrentQ]===i?'<span style=\"width:10px;height:10px;border-radius:50%;background:var(--blue);\"></span>':''}</span>
+            ${opt}
+          </label>`).join('')}
+      </div>
+    </div>`;
+}
+
+function selectAnswer(val){
+  formAnswers[formCurrentQ]=val;
+  renderFormQuestion();
+}
+
+function formNav(dir){
+  const form=FORMS[activeFormKey];
+  if(dir===1){
+    if(formAnswers[formCurrentQ]===-1){alert('Please select an answer before continuing.');return;}
+    if(formCurrentQ===form.questions.length-1){
+      submitForm(); return;
+    }
+    formCurrentQ++;
+  } else {
+    formCurrentQ=Math.max(0,formCurrentQ-1);
+  }
+  renderFormQuestion();
+}
+
+function submitForm(){
+  const form=FORMS[activeFormKey];
+  const score=form.score(formAnswers);
+  const interp=form.interpret(score);
+  const interpCls=form.interpClass(score);
+
+  // Save results
+  const p=patients.find(x=>x.id===activeFormPatientId);
+  const f=p&&p.forms&&p.forms.find(x=>x.id===activeFormId);
+  if(f){
+    f.completed=true;
+    f.completedDate='Today';
+    f.answers=formAnswers.slice();
+    f.score=score;
+    f.interpretation=interp;
+    f.interpClass=interpCls;
+    p.timeline=p.timeline||[];
+    p.timeline.push({type:'appt',date:'Today',desc:`${form.name} completed — score: ${score} (${interp})`});
+  }
+
+  closeFormModal();
+  addMsg('system',`${p.fullName} completed ${form.name} — score: ${score}/100 (${interp})`);
+  renderSidebarTab('forms',p);
+}
+
+function viewFormResults(patientId,formId){
+  const p=patients.find(x=>x.id===patientId);
+  const f=p&&p.forms&&p.forms.find(x=>x.id===formId);
+  if(!f||!f.completed)return;
+  const form=FORMS[f.formKey];
+  document.getElementById('form-modal-title').textContent=form.name+' — Results';
+  document.getElementById('form-modal-sub').textContent=`Completed ${f.completedDate} · ${p.fullName}`;
+  document.getElementById('form-progress-wrap').style.display='none';
+  document.getElementById('form-back-btn').style.display='none';
+  document.getElementById('form-next-btn').style.display='none';
+
+  const body=document.getElementById('form-modal-body');
+  body.innerHTML=`
+    <div class="form-result-score">
+      <div class="form-result-number">${f.score}</div>
+      <div class="form-result-label">out of ${form.scoreMax}</div>
+      <div class="form-result-interp ${f.interpClass}">${f.interpretation}</div>
+    </div>
+    <div class="s-label" style="margin:14px 0 8px;">Raw answers</div>
+    <table class="form-answers-table">
+      ${form.questions.map((q,i)=>`<tr><td>${q.text}</td><td>${q.opts[f.answers[i]]||'—'}</td></tr>`).join('')}
+    </table>`;
+  document.getElementById('form-modal-overlay').classList.add('open');
+}
+
+// Auto-send form on booking
+function sendIntakeFormOnBooking(patient, apptType){
+  const suggested=suggestForm(patient);
+  const formKey=suggested||'psfs';
+  patient.forms=patient.forms||[];
+  const fid='form_'+Date.now();
+  patient.forms.push({id:fid,formKey,sent:true,sentDate:'Today',completed:false,completedDate:null,answers:null,score:null});
+  addMsg('system',`Intake form (${FORM_NAMES[formKey]}) sent to ${patient.fullName} at ${patient.phone}`);
+}
+
+document.getElementById('form-modal-overlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('form-modal-overlay')){
+    closeFormModal();
+    document.getElementById('form-progress-wrap').style.display='';
+    document.getElementById('form-next-btn').style.display='';
+  }
+});
+
+// ===== END INTAKE FORMS =====
+
+// ===== RECURRING SERIES ENGINE =====
+let seriesBaseSlot = null;
+let seriesBasePatient = null;
+let seriesBaseApptType = null;
+let seriesFreq = 'weekly';
+let seriesPreviewSlots = [];
+
+function openSeriesModal(slot, patient, apptType) {
+  seriesBaseSlot = slot;
+  seriesBasePatient = patient;
+  seriesBaseApptType = apptType;
+  seriesFreq = 'weekly';
+  seriesPreviewSlots = [];
+  document.getElementById('series-modal-desc').textContent =
+    `${patient.fullName} is booked for ${apptType} on ${slotLabel(slot)}. Would you like to set up a recurring series?`;
+  document.querySelectorAll('.series-opt').forEach(o => o.classList.remove('selected'));
+  document.getElementById('series-preview').innerHTML = '';
+  document.getElementById('series-confirm-btn').style.display = 'none';
+  document.getElementById('series-preview-btn').style.display = 'inline-block';
+  document.getElementById('series-modal-overlay').classList.add('open');
+}
+
+function closeSeriesModal() {
+  document.getElementById('series-modal-overlay').classList.remove('open');
+  seriesBaseSlot = null; seriesPreviewSlots = [];
+}
+
+function selectSeriesOpt(el, freq) {
+  document.querySelectorAll('.series-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  seriesFreq = freq;
+  seriesPreviewSlots = [];
+  document.getElementById('series-preview').innerHTML = '';
+  document.getElementById('series-confirm-btn').style.display = 'none';
+  document.getElementById('series-preview-btn').style.display = 'inline-block';
+}
+
+function getSeriesDayOffsets(freq) {
+  // Returns array of day offsets from base slot for each recurrence
+  if (freq === 'weekly') return [7, 14, 21, 28, 35, 42, 49, 56, 70, 77, 84];
+  if (freq === 'biweekly') return [14, 28, 42, 56, 70, 84, 98, 112];
+  if (freq === '3x') {
+    // Mon=0,Tue=1,Wed=2,Thu=3,Fri=4
+    const base = seriesBaseSlot.dayIdx;
+    const offsets = [];
+    // Find next Mon, Wed, Fri pattern starting from base
+    const mwf = [0, 2, 4]; // Mon, Wed, Fri dayIdx
+    let dayCount = 0;
+    while (offsets.length < 36) {
+      dayCount++;
+      const di = (base + dayCount) % 7;
+      if (mwf.includes(di % 5) && di < 5) offsets.push(dayCount);
+    }
+    return offsets;
+  }
+  return [];
+}
+
+function dayIdxFromOffset(baseDayIdx, offset) {
+  return (baseDayIdx + offset) % 5; // Mon-Fri only
+}
+
+function weekOffsetFromDayOffset(baseDayIdx, offset) {
+  return Math.floor((baseDayIdx + offset) / 5);
+}
+
+function previewSeries() {
+  if (!seriesBaseSlot) return;
+  const count = parseInt(document.getElementById('series-count-sel').value);
+  const offsets = getSeriesDayOffsets(seriesFreq);
+  const type = seriesBaseApptType;
+  const therapist = seriesBaseSlot.therapist;
+  const timeSlot = seriesBaseSlot.timeSlot;
+  const baseDayIdx = seriesBaseSlot.dayIdx;
+
+  seriesPreviewSlots = [];
+  let skipped = 0;
+
+  // Already have the base slot booked — find (count-1) more
+  for (let i = 0; i < offsets.length && seriesPreviewSlots.length < count - 1; i++) {
+    const offset = offsets[i];
+    const di = (baseDayIdx + offset) % 5;
+    const wOff = Math.floor((baseDayIdx + offset) / 5);
+    const conflict = isConflict(therapist, di, timeSlot, type);
+    const slot = { therapist, dayIdx: di, timeSlot, weekOffset: wOff, conflict };
+    if (!conflict) seriesPreviewSlots.push(slot);
+    else skipped++;
+  }
+
+  // Build preview HTML
+  const dates = getWeekDates();
+  const baseDate = new Date();
+  const day = baseDate.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  baseDate.setDate(baseDate.getDate() + diff);
+
+  let html = `<div class="series-result${skipped > 0 ? ' warn' : ''}">`;
+  html += `<strong>✓ Base visit already booked.</strong> Found <strong>${seriesPreviewSlots.length}</strong> additional slot${seriesPreviewSlots.length !== 1 ? 's' : ''} (${skipped} conflict${skipped !== 1 ? 's' : ''} skipped).<br/><br/>`;
+
+  seriesPreviewSlots.forEach((s, i) => {
+    const d = new Date(baseDate);
+    d.setDate(baseDate.getDate() + s.dayIdx + s.weekOffset * 5);
+    const [h, m] = HOURS[s.timeSlot].split(':').map(Number);
+    const ampm = h >= 12 ? 'pm' : 'am';
+    const h12 = h > 12 ? h - 12 : h;
+    html += `Visit ${i + 2}: ${DAYS[s.dayIdx]} ${d.toLocaleString('default', {month:'short'})} ${d.getDate()} at ${h12}:${m === 0 ? '00' : m}${ampm} — ${s.therapist}<br/>`;
+  });
+  html += '</div>';
+
+  document.getElementById('series-preview').innerHTML = html;
+  document.getElementById('series-confirm-btn').style.display = seriesPreviewSlots.length > 0 ? 'inline-block' : 'none';
+  document.getElementById('series-preview-btn').style.display = 'none';
+}
+
+function confirmSeries() {
+  if (!seriesBasePatient || seriesPreviewSlots.length === 0) return;
+  const patient = seriesBasePatient;
+  const type = seriesBaseApptType;
+  const shortName = patient.fullName.split(' ')[0] + ' ' + (patient.fullName.split(' ')[1] || '')[0] + '.';
+  const seriesId = 'series_' + Date.now();
+
+  let booked = 0;
+  seriesPreviewSlots.forEach(s => {
+    appointments.push({
+      patientId: patient.id,
+      name: shortName,
+      type,
+      therapist: s.therapist,
+      dayIdx: s.dayIdx,
+      timeSlot: s.timeSlot,
+      seriesId,
+      weekOffset: s.weekOffset
+    });
+    patient.visits += 1;
+    booked++;
+  });
+
+  patient.timeline = patient.timeline || [];
+  patient.timeline.push({ type: 'appt', date: 'Today', desc: `Series booked: ${booked + 1}x ${type} — ${seriesFreq} for ${booked + 1} visits` });
+
+  renderCalendar();
+  closeSeriesModal();
+  const freqLabel = seriesFreq === '3x' ? '3x per week' : seriesFreq;
+  addMsg('system', `Series booked: ${booked + 1} total visits (${freqLabel}) for ${patient.fullName}`);
+
+  // Tell Aria about the series
+  const seriesMsg = `SERIES_CONFIRMED:${patient.fullName}|${type}|${booked + 1} visits|${freqLabel}`;
+  conversation.push({ role: 'user', content: seriesMsg });
+  continueCall(seriesMsg);
+}
+
+document.getElementById('series-modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('series-modal-overlay')) closeSeriesModal();
+});
+
+// ===== END RECURRING SERIES =====
+
+// ===== SOAP NOTES ENGINE =====
+
+let activeSoapPatientId = null;
+let activeSoapNoteId = null;
+let activeSoapType = null;
+let soapData = {};  // holds current note data being edited
+
+const SPECIAL_TESTS = {
+  shoulder: ['Empty Can','Hawkins-Kennedy','Neer','Speed's','Yergason's','Apprehension','O'Brien's','Drop Arm'],
+  knee: ['Lachman's','Anterior Drawer','McMurray's','Valgus Stress','Varus Stress','Thessaly's','Patellar Grind'],
+  lumbar: ['SLR','Slump Test','FABER','Prone Instability','Spring Test','Kemp's'],
+  cervical: ['Spurling's','Distraction','Upper Limb Tension','Vertebral Artery','Jackson's','Rotation ≥60°'],
+  hip: ['FABER','FADIR','Thomas Test','Trendelenburg','Ober's','90-90 SLR'],
+  ankle: ['Ottawa Ankle Rules','Anterior Drawer','Talar Tilt','Thompson Test','Squeeze Test'],
+  general: ['Segmental mobility','Neural tension','Joint mobility','Muscle length']
+};
+
+const ROM_MOTIONS = {
+  shoulder: [['Flexion','°','°'],['Extension','°','°'],['Abduction','°','°'],['ER','°','°'],['IR','°','°'],['Horizontal ADD','°','°']],
+  cervical: [['Flexion','°',''],['Extension','°',''],['R Rotation','°',''],['L Rotation','°',''],['R Lateral Flexion','°',''],['L Lateral Flexion','°','']],
+  lumbar: [['Flexion','°',''],['Extension','°',''],['R Lateral Flexion','°',''],['L Lateral Flexion','°','']],
+  knee: [['Flexion','°','°'],['Extension','°','°']],
+  hip: [['Flexion','°','°'],['Extension','°','°'],['Abduction','°','°'],['ER','°','°'],['IR','°','°']],
+  ankle: [['Dorsiflexion','°','°'],['Plantarflexion','°','°'],['Inversion','°','°'],['Eversion','°','°']],
+  elbow: [['Flexion','°','°'],['Extension','°','°'],['Supination','°','°'],['Pronation','°','°']],
+  wrist: [['Flexion','°','°'],['Extension','°','°'],['Radial Dev','°','°'],['Ulnar Dev','°','°']],
+  general: [['Motion 1','',''],['Motion 2','',''],['Motion 3','',''],['Motion 4','','']]
+};
+
+const MMT_MUSCLES = {
+  shoulder: ['Deltoid (ant)','Deltoid (mid)','Deltoid (post)','Supraspinatus','Infraspinatus','Subscapularis','Biceps','Triceps'],
+  cervical: ['SCM (R)','SCM (L)','Upper Trap (R)','Upper Trap (L)','Deep neck flex'],
+  lumbar: ['Hip Flexors','Glute Max','Glute Med','Hamstrings','Quads','Core/Abdominals'],
+  knee: ['Quads','Hamstrings','Gastroc','Soleus'],
+  hip: ['Hip Flexors','Glute Max','Glute Med','Adductors','ER','IR'],
+  ankle: ['TA','Gastroc','Soleus','Peroneals','EHL'],
+  general: ['Muscle group 1','Muscle group 2','Muscle group 3','Muscle group 4']
+};
+
+function detectBodyRegion(patient) {
+  const cc = ((patient.referralDr||'')+(patient.notes||'')).toLowerCase();
+  if (cc.match(/shoulder|rotator|arm|elbow|wrist|hand/)) return 'shoulder';
+  if (cc.match(/neck|cervical/)) return 'cervical';
+  if (cc.match(/back|lumbar|spine|sciatica/)) return 'lumbar';
+  if (cc.match(/knee|acl|mcl|meniscus/)) return 'knee';
+  if (cc.match(/hip/)) return 'hip';
+  if (cc.match(/ankle|foot|plantar|achilles/)) return 'ankle';
+  return 'general';
+}
+
+function openSoapModal(patientId, noteType, noteId) {
+  activeSoapPatientId = patientId;
+  activeSoapType = noteType;
+  activeSoapNoteId = noteId;
+  const p = patients.find(x => x.id === patientId);
+  if (!p) return;
+
+  const typeLabels = {eval:'Initial Evaluation', progress:'Progress Note', discharge:'Discharge Summary'};
+  document.getElementById('soap-modal-title').textContent = typeLabels[noteType] + ' — SOAP Note';
+  document.getElementById('soap-modal-sub').textContent = p.fullName + ' · ' + new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  // Load existing note or create new / pull forward previous
+  let existing = noteId && p.soapNotes && p.soapNotes.find(n => n.id === noteId);
+  if (!existing && noteType === 'progress') {
+    // Pull forward last note
+    const prev = (p.soapNotes||[]).filter(n => n.type==='progress'||n.type==='eval').slice(-1)[0];
+    if (prev) { existing = JSON.parse(JSON.stringify(prev)); existing.id = null; existing.signed = false; existing.date = 'Today'; }
+  }
+
+  soapData = existing ? JSON.parse(JSON.stringify(existing)) : {
+    id: null, type: noteType, patientId, date:'Today', signed:false, therapist:'', credentials:'', signDate:'',
+    subjective:{ chiefComplaint:'', painCurrent:null, painBest:null, painWorst:null, painBehavior:'', aggravating:'', easing:'', priorLevel:'', goals:'', notes:'' },
+    objective:{ region: detectBodyRegion(p), posture:'', rom:{}, mmt:{}, specialTests:{}, palpation:'', gait:'', functionalMobility:'', notes:'' },
+    assessment:{ diagnosis:'', prognosis:'', visitNumber:'', totalVisits:'', functionalLimitations:'', clinicalImpression:'', responseToTx:'', notes:'' },
+    plan:{ interventions:[], stGoals:[], ltGoals:[], frequency:'', duration:'', hep:'', nextVisit:'', notes:'' }
+  };
+
+  // Pre-fill signature fields
+  document.getElementById('soap-sig-name').value = soapData.therapist || '';
+  document.getElementById('soap-sig-creds').value = soapData.credentials || '';
+  document.getElementById('soap-sig-date').value = soapData.signDate || new Date().toISOString().slice(0,10);
+
+  const signBtn = document.getElementById('soap-sign-btn');
+  if (soapData.signed) { signBtn.textContent = '✓ Signed'; signBtn.className = 'soap-btn signed'; signBtn.disabled = true; }
+  else { signBtn.textContent = 'Sign & finalize'; signBtn.className = 'soap-btn primary'; signBtn.disabled = false; }
+
+  renderSoapBody();
+  document.getElementById('soap-modal-overlay').classList.add('open');
+}
+
+function closeSoapModal() {
+  document.getElementById('soap-modal-overlay').classList.remove('open');
+  activeSoapPatientId = null; activeSoapNoteId = null; soapData = {};
+}
+
+function renderSoapBody() {
+  const body = document.getElementById('soap-modal-body');
+  const sd = soapData;
+  const disabled = sd.signed ? 'disabled' : '';
+  const region = sd.objective.region || 'general';
+
+  // Build ROM table
+  const romMotions = ROM_MOTIONS[region] || ROM_MOTIONS.general;
+  const romRows = romMotions.map(([motion, lUnit, rUnit]) => {
+    const key = motion.replace(/\s/g,'_');
+    const lVal = (sd.objective.rom[key+'_L']||'');
+    const rVal = (sd.objective.rom[key+'_R']||'');
+    const hasR = rUnit !== '';
+    return `<tr><td style="font-size:12px;padding:4px 8px;">${motion}</td>
+      <td><input class="rom-input" data-key="${key}_L" value="${lVal}" placeholder="°" ${disabled} oninput="updateRom(this)"/></td>
+      ${hasR ? `<td><input class="rom-input" data-key="${key}_R" value="${rVal}" placeholder="°" ${disabled} oninput="updateRom(this)"/></td>` : '<td style="color:var(--text3);font-size:11px;text-align:center;">—</td>'}
+      </tr>`;
+  }).join('');
+
+  // Build MMT rows
+  const mmtMuscles = MMT_MUSCLES[region] || MMT_MUSCLES.general;
+  const mmtRows = mmtMuscles.map(muscle => {
+    const key = muscle.replace(/[^a-zA-Z0-9]/g,'_');
+    const val = sd.objective.mmt[key];
+    const grades = ['0','1','2','3','4','4+','5'];
+    const btns = grades.map(g => `<button class="mmt-btn${val===g?' selected':''}" onclick="updateMmt('${key}','${g}',this)" ${disabled}>${g}</button>`).join('');
+    return `<div class="mmt-row"><span class="mmt-label">${muscle}</span><div class="mmt-btns">${btns}</div></div>`;
+  }).join('');
+
+  // Build special tests
+  const tests = SPECIAL_TESTS[region] || SPECIAL_TESTS.general;
+  const testRows = tests.map(test => {
+    const key = test.replace(/[^a-zA-Z0-9]/g,'_');
+    const result = sd.objective.specialTests[key] || 'not-tested';
+    return `<div class="special-test-row">
+      <span class="special-test-name">${test}</span>
+      <button class="test-result-btn ${result==='positive'?'positive':''}" onclick="updateTest('${key}','positive',this)" ${disabled}>+ Positive</button>
+      <button class="test-result-btn ${result==='negative'?'negative':''}" onclick="updateTest('${key}','negative',this)" ${disabled}>− Negative</button>
+      <button class="test-result-btn ${result==='not-tested'?'not-tested':''}" onclick="updateTest('${key}','not-tested',this)" ${disabled}>N/T</button>
+    </div>`;
+  }).join('');
+
+  // Build NRS buttons
+  function nrsRow(field, label, current) {
+    const btns = Array.from({length:11},(_,i)=>`<button class="nrs-btn${current===i?' selected':''}" onclick="updateNrs('${field}',${i},this)" ${disabled}>${i}</button>`).join('');
+    return `<div class="soap-field-group"><div class="soap-field-label">${label}</div><div class="nrs-wrap">${btns}</div></div>`;
+  }
+
+  // Build intervention checkboxes
+  const interventionOpts = ['Therapeutic exercise','Manual therapy','Neuromuscular re-ed','Ultrasound','E-stim','Heat/Cold','Taping/Bracing','Gait training','Balance training','Aquatic therapy','Dry needling','Patient education'];
+  const intChecks = interventionOpts.map(opt => {
+    const checked = (sd.plan.interventions||[]).includes(opt);
+    return `<label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;padding:3px 0;">
+      <input type="checkbox" ${checked?'checked':''} ${disabled} onchange="updateInterventions('${opt}',this.checked)"/> ${opt}</label>`;
+  }).join('');
+
+  // Build goals
+  function goalRows(goals, goalType) {
+    const rows = (goals||[]).map((g,i) => `<div class="goal-row">
+      <div class="goal-row-inputs">
+        <input class="soap-input" value="${g.text||''}" placeholder="Goal description" ${disabled} oninput="updateGoal('${goalType}',${i},'text',this.value)"/>
+        <div style="display:flex;gap:6px;">
+          <input class="soap-input" style="flex:1;" value="${g.target||''}" placeholder="Target date (e.g. 4 weeks)" ${disabled} oninput="updateGoal('${goalType}',${i},'target',this.value)"/>
+          <select class="soap-select" ${disabled} onchange="updateGoal('${goalType}',${i},'status',this.value)">
+            <option ${g.status==='not started'?'selected':''}>not started</option>
+            <option ${g.status==='in progress'?'selected':''}>in progress</option>
+            <option ${g.status==='met'?'selected':''}>met</option>
+            <option ${g.status==='not met'?'selected':''}>not met</option>
+          </select>
+        </div>
+      </div>
+      ${!disabled?`<button class="goal-remove" onclick="removeGoal('${goalType}',${i})">&#10005;</button>`:''}
+    </div>`).join('');
+    return rows + (!disabled ? `<button class="add-goal-btn" onclick="addGoal('${goalType}')">+ Add goal</button>` : '');
+  }
+
+  body.innerHTML = `
+  <div class="soap-section soap-s">
+    <div class="soap-section-header"><div class="soap-section-letter">S</div><div class="soap-section-title">Subjective</div></div>
+    <div class="soap-section-body">
+      <div class="soap-field-group"><div class="soap-field-label">Chief complaint</div>
+        <textarea class="soap-textarea" ${disabled} placeholder="Patient reports..." oninput="sd.subjective.chiefComplaint=this.value">${sd.subjective.chiefComplaint||''}</textarea></div>
+      ${nrsRow('painCurrent','Pain — current (0–10 NRS)',sd.subjective.painCurrent)}
+      ${nrsRow('painBest','Pain — best in past week',sd.subjective.painBest)}
+      ${nrsRow('painWorst','Pain — worst in past week',sd.subjective.painWorst)}
+      <div class="soap-inline-group">
+        <div class="soap-field-group"><div class="soap-field-label">Aggravating factors</div>
+          <textarea class="soap-textarea" ${disabled} style="min-height:55px;" oninput="sd.subjective.aggravating=this.value">${sd.subjective.aggravating||''}</textarea></div>
+        <div class="soap-field-group"><div class="soap-field-label">Easing factors</div>
+          <textarea class="soap-textarea" ${disabled} style="min-height:55px;" oninput="sd.subjective.easing=this.value">${sd.subjective.easing||''}</textarea></div>
+      </div>
+      <div class="soap-inline-group">
+        <div class="soap-field-group"><div class="soap-field-label">Pain behavior</div>
+          <select class="soap-select" style="width:100%;" ${disabled} onchange="sd.subjective.painBehavior=this.value">
+            <option value="">Select...</option>
+            <option ${sd.subjective.painBehavior==='constant'?'selected':''}>constant</option>
+            <option ${sd.subjective.painBehavior==='intermittent'?'selected':''}>intermittent</option>
+            <option ${sd.subjective.painBehavior==='variable'?'selected':''}>variable</option>
+          </select></div>
+        <div class="soap-field-group"><div class="soap-field-label">Prior level of function</div>
+          <input class="soap-input" ${disabled} placeholder="Independent, with assistance..." value="${sd.subjective.priorLevel||''}" oninput="sd.subjective.priorLevel=this.value"/></div>
+      </div>
+      <div class="soap-field-group"><div class="soap-field-label">Patient goals</div>
+        <textarea class="soap-textarea" ${disabled} style="min-height:50px;" placeholder="Patient states they want to..." oninput="sd.subjective.goals=this.value">${sd.subjective.goals||''}</textarea></div>
+      <div class="soap-field-group"><div class="soap-field-label">Additional subjective notes</div>
+        <textarea class="soap-textarea" ${disabled} style="min-height:50px;" oninput="sd.subjective.notes=this.value">${sd.subjective.notes||''}</textarea></div>
+    </div>
+  </div>
+
+  <div class="soap-section soap-o">
+    <div class="soap-section-header"><div class="soap-section-letter">O</div><div class="soap-section-title">Objective</div></div>
+    <div class="soap-section-body">
+      <div class="soap-inline-group">
+        <div class="soap-field-group"><div class="soap-field-label">Body region</div>
+          <select class="soap-select" style="width:100%;" ${disabled} onchange="updateBodyRegion(this.value)">
+            ${['shoulder','cervical','lumbar','knee','hip','ankle','elbow','wrist','general'].map(r=>`<option value="${r}" ${region===r?'selected':''}>${r.charAt(0).toUpperCase()+r.slice(1)}</option>`).join('')}
+          </select></div>
+        <div class="soap-field-group"><div class="soap-field-label">Posture / observation</div>
+          <input class="soap-input" ${disabled} placeholder="WNL, forward head posture..." value="${sd.objective.posture||''}" oninput="sd.objective.posture=this.value"/></div>
+      </div>
+
+      <div class="soap-field-group"><div class="soap-field-label">Range of motion (active)</div>
+        <table class="rom-table">
+          <thead><tr><th>Motion</th><th>Left / Single</th><th>Right</th></tr></thead>
+          <tbody>${romRows}</tbody>
+        </table>
+      </div>
+
+      <div class="soap-field-group"><div class="soap-field-label">Manual muscle testing (MMT)</div>
+        ${mmtRows}
+      </div>
+
+      <div class="soap-field-group"><div class="soap-field-label">Special tests</div>
+        ${testRows}
+      </div>
+
+      <div class="soap-inline-group">
+        <div class="soap-field-group"><div class="soap-field-label">Palpation findings</div>
+          <textarea class="soap-textarea" ${disabled} style="min-height:60px;" placeholder="TTP at..." oninput="sd.objective.palpation=this.value">${sd.objective.palpation||''}</textarea></div>
+        <div class="soap-field-group"><div class="soap-field-label">Gait assessment</div>
+          <textarea class="soap-textarea" ${disabled} style="min-height:60px;" placeholder="Antalgic gait, WNL..." oninput="sd.objective.gait=this.value">${sd.objective.gait||''}</textarea></div>
+      </div>
+      <div class="soap-field-group"><div class="soap-field-label">Functional mobility</div>
+        <textarea class="soap-textarea" ${disabled} style="min-height:55px;" placeholder="Transfers, sit-to-stand, ambulation..." oninput="sd.objective.functionalMobility=this.value">${sd.objective.functionalMobility||''}</textarea></div>
+      <div class="soap-field-group"><div class="soap-field-label">Additional objective notes</div>
+        <textarea class="soap-textarea" ${disabled} style="min-height:50px;" oninput="sd.objective.notes=this.value">${sd.objective.notes||''}</textarea></div>
+    </div>
+  </div>
+
+  <div class="soap-section soap-a">
+    <div class="soap-section-header"><div class="soap-section-letter">A</div><div class="soap-section-title">Assessment</div></div>
+    <div class="soap-section-body">
+      <div class="soap-inline-group">
+        <div class="soap-field-group"><div class="soap-field-label">Clinical diagnosis / impression</div>
+          <input class="soap-input" ${disabled} placeholder="e.g. Shoulder impingement syndrome" value="${sd.assessment.diagnosis||''}" oninput="sd.assessment.diagnosis=this.value"/></div>
+        <div class="soap-field-group"><div class="soap-field-label">Prognosis</div>
+          <select class="soap-select" style="width:100%;" ${disabled} onchange="sd.assessment.prognosis=this.value">
+            <option value="">Select...</option>
+            <option ${sd.assessment.prognosis==='excellent'?'selected':''}>excellent</option>
+            <option ${sd.assessment.prognosis==='good'?'selected':''}>good</option>
+            <option ${sd.assessment.prognosis==='fair'?'selected':''}>fair</option>
+            <option ${sd.assessment.prognosis==='guarded'?'selected':''}>guarded</option>
+            <option ${sd.assessment.prognosis==='poor'?'selected':''}>poor</option>
+          </select></div>
+      </div>
+      <div class="soap-inline-group-3">
+        <div class="soap-field-group"><div class="soap-field-label">Visit # today</div>
+          <input class="soap-input" ${disabled} type="number" placeholder="e.g. 3" value="${sd.assessment.visitNumber||''}" oninput="sd.assessment.visitNumber=this.value"/></div>
+        <div class="soap-field-group"><div class="soap-field-label">Total authorized visits</div>
+          <input class="soap-input" ${disabled} type="number" placeholder="e.g. 12" value="${sd.assessment.totalVisits||''}" oninput="sd.assessment.totalVisits=this.value"/></div>
+        <div class="soap-field-group"><div class="soap-field-label">Response to treatment</div>
+          <select class="soap-select" style="width:100%;" ${disabled} onchange="sd.assessment.responseToTx=this.value">
+            <option value="">Select...</option>
+            <option ${sd.assessment.responseToTx==='tolerated well'?'selected':''}>tolerated well</option>
+            <option ${sd.assessment.responseToTx==='tolerated fair'?'selected':''}>tolerated fair</option>
+            <option ${sd.assessment.responseToTx==='minimal progress'?'selected':''}>minimal progress</option>
+            <option ${sd.assessment.responseToTx==='no progress'?'selected':''}>no progress</option>
+            <option ${sd.assessment.responseToTx==='regression'?'selected':''}>regression</option>
+          </select></div>
+      </div>
+      <div class="soap-field-group"><div class="soap-field-label">Functional limitations</div>
+        <textarea class="soap-textarea" ${disabled} style="min-height:55px;" placeholder="Patient unable to..." oninput="sd.assessment.functionalLimitations=this.value">${sd.assessment.functionalLimitations||''}</textarea></div>
+      <div class="soap-field-group"><div class="soap-field-label">Clinical impression / justification for continued PT</div>
+        <textarea class="soap-textarea" ${disabled} style="min-height:65px;" placeholder="Patient continues to demonstrate deficits in..." oninput="sd.assessment.clinicalImpression=this.value">${sd.assessment.clinicalImpression||''}</textarea></div>
+      <div class="soap-field-group"><div class="soap-field-label">Additional assessment notes</div>
+        <textarea class="soap-textarea" ${disabled} style="min-height:50px;" oninput="sd.assessment.notes=this.value">${sd.assessment.notes||''}</textarea></div>
+    </div>
+  </div>
+
+  <div class="soap-section soap-p">
+    <div class="soap-section-header"><div class="soap-section-letter">P</div><div class="soap-section-title">Plan</div></div>
+    <div class="soap-section-body">
+      <div class="soap-field-group"><div class="soap-field-label">Interventions performed</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;">${intChecks}</div>
+      </div>
+      <div class="soap-inline-group">
+        <div class="soap-field-group"><div class="soap-field-label">Treatment frequency</div>
+          <select class="soap-select" style="width:100%;" ${disabled} onchange="sd.plan.frequency=this.value">
+            <option value="">Select...</option>
+            <option ${sd.plan.frequency==='1x/week'?'selected':''}>1x/week</option>
+            <option ${sd.plan.frequency==='2x/week'?'selected':''}>2x/week</option>
+            <option ${sd.plan.frequency==='3x/week'?'selected':''}>3x/week</option>
+            <option ${sd.plan.frequency==='PRN'?'selected':''}>PRN</option>
+          </select></div>
+        <div class="soap-field-group"><div class="soap-field-label">Duration</div>
+          <select class="soap-select" style="width:100%;" ${disabled} onchange="sd.plan.duration=this.value">
+            <option value="">Select...</option>
+            ${['2 weeks','4 weeks','6 weeks','8 weeks','12 weeks'].map(d=>`<option ${sd.plan.duration===d?'selected':''}>${d}</option>`).join('')}
+          </select></div>
+      </div>
+      <div class="soap-field-group"><div class="soap-field-label">Short-term goals (2–4 weeks)</div>
+        ${goalRows(sd.plan.stGoals,'stGoals')}
+      </div>
+      <div class="soap-field-group"><div class="soap-field-label">Long-term goals (functional outcomes)</div>
+        ${goalRows(sd.plan.ltGoals,'ltGoals')}
+      </div>
+      <div class="soap-field-group"><div class="soap-field-label">Home exercise program (HEP)</div>
+        <textarea class="soap-textarea" ${disabled} style="min-height:55px;" placeholder="Patient instructed in..." oninput="sd.plan.hep=this.value">${sd.plan.hep||''}</textarea></div>
+      <div class="soap-field-group"><div class="soap-field-label">Next visit / plan</div>
+        <input class="soap-input" ${disabled} placeholder="Return in 2 days for..." value="${sd.plan.nextVisit||''}" oninput="sd.plan.nextVisit=this.value"/></div>
+      <div class="soap-field-group"><div class="soap-field-label">Additional plan notes</div>
+        <textarea class="soap-textarea" ${disabled} style="min-height:50px;" oninput="sd.plan.notes=this.value">${sd.plan.notes||''}</textarea></div>
+    </div>
+  </div>`;
+}
+
+// Interaction handlers
+function updateNrs(field, val, btn) {
+  soapData.subjective[field] = val;
+  btn.closest('.nrs-wrap').querySelectorAll('.nrs-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+function updateRom(input) {
+  soapData.objective.rom[input.dataset.key] = input.value;
+}
+function updateMmt(key, grade, btn) {
+  soapData.objective.mmt[key] = grade;
+  btn.closest('.mmt-btns').querySelectorAll('.mmt-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+function updateTest(key, result, btn) {
+  soapData.objective.specialTests[key] = result;
+  btn.closest('.special-test-row').querySelectorAll('.test-result-btn').forEach(b => { b.className = 'test-result-btn'; });
+  btn.classList.add(result);
+}
+function updateInterventions(opt, checked) {
+  if (!soapData.plan.interventions) soapData.plan.interventions = [];
+  if (checked) { if (!soapData.plan.interventions.includes(opt)) soapData.plan.interventions.push(opt); }
+  else { soapData.plan.interventions = soapData.plan.interventions.filter(x => x !== opt); }
+}
+function updateGoal(goalType, idx, field, val) {
+  soapData.plan[goalType][idx][field] = val;
+}
+function addGoal(goalType) {
+  if (!soapData.plan[goalType]) soapData.plan[goalType] = [];
+  soapData.plan[goalType].push({text:'', target:'', status:'not started'});
+  renderSoapBody();
+}
+function removeGoal(goalType, idx) {
+  soapData.plan[goalType].splice(idx, 1);
+  renderSoapBody();
+}
+function updateBodyRegion(region) {
+  soapData.objective.region = region;
+  renderSoapBody();
+}
+
+function saveSoapDraft() {
+  const p = patients.find(x => x.id === activeSoapPatientId);
+  if (!p) return;
+  p.soapNotes = p.soapNotes || [];
+  soapData.therapist = document.getElementById('soap-sig-name').value;
+  soapData.credentials = document.getElementById('soap-sig-creds').value;
+  soapData.signDate = document.getElementById('soap-sig-date').value;
+  soapData.date = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  if (!soapData.id) {
+    soapData.id = 'soap_' + Date.now();
+    p.soapNotes.push(soapData);
+  } else {
+    const idx = p.soapNotes.findIndex(n => n.id === soapData.id);
+    if (idx > -1) p.soapNotes[idx] = soapData;
+    else p.soapNotes.push(soapData);
+  }
+  activeSoapNoteId = soapData.id;
+  addMsg('system', `SOAP note draft saved — ${p.fullName}`);
+  if (activeSidebarId === activeSoapPatientId) renderSidebarTab('soap', p);
+}
+
+function signSoapNote() {
+  const name = document.getElementById('soap-sig-name').value.trim();
+  const creds = document.getElementById('soap-sig-creds').value.trim();
+  const date = document.getElementById('soap-sig-date').value;
+  if (!name) { alert('Please enter therapist name before signing.'); return; }
+  if (!creds) { alert('Please enter credentials (e.g. DPT) before signing.'); return; }
+  if (!date) { alert('Please enter a date before signing.'); return; }
+  saveSoapDraft();
+  const p = patients.find(x => x.id === activeSoapPatientId);
+  const note = p && p.soapNotes && p.soapNotes.find(n => n.id === soapData.id);
+  if (note) {
+    note.signed = true; note.therapist = name; note.credentials = creds; note.signDate = date;
+    p.timeline = p.timeline || [];
+    const typeLabel = {eval:'Initial evaluation',progress:'Progress note',discharge:'Discharge summary'};
+    p.timeline.push({type:'appt', date:'Today', desc:`${typeLabel[note.type]} SOAP note signed — ${name}, ${creds}`});
+  }
+  document.getElementById('soap-sign-btn').textContent = '✓ Signed';
+  document.getElementById('soap-sign-btn').className = 'soap-btn signed';
+  document.getElementById('soap-sign-btn').disabled = true;
+  document.getElementById('soap-modal-body').querySelectorAll('input,textarea,select,button:not(#soap-modal-close):not(.soap-btn)').forEach(el => el.disabled = true);
+  addMsg('system', `SOAP note signed by ${name}, ${creds} — ${p.fullName}`);
+  if (activeSidebarId === activeSoapPatientId) renderSidebarTab('soap', p);
+}
+
+document.getElementById('soap-modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('soap-modal-overlay')) closeSoapModal();
+});
+
+// ===== END SOAP NOTES ENGINE =====
+function setMode(mode,btn){editMode=mode==='edit';document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('edit-hint').style.display=editMode?'inline':'none';renderCalendar();}
+function isSlotBlocked(t,di,si){return blocks.some(b=>(b.therapist===t||b.therapist==='All')&&b.dayIdx===di&&si>=b.startSlot&&si<b.startSlot+b.durationSlots);}
+function isOutsideHours(t,si){if(t==='All')return false;const[s,e]=therapistHours[t]||[0,18];return si<s||si>=e;}
+function slotsOccupied(a){const n=Math.ceil(APPT_TYPES[a.type].duration/30);return Array.from({length:n},(_,i)=>a.timeSlot+i);}
+function isConflict(t,di,ss,type){const needed=Math.ceil(APPT_TYPES[type].duration/30);for(let s=ss;s<ss+needed;s++){if(isSlotBlocked(t,di,s)||isOutsideHours(t,s)||appointments.find(a=>a.therapist===t&&a.dayIdx===di&&slotsOccupied(a).includes(s)))return true;}return ss+needed>18;}
+function findAvailableSlots(t,type,count=4){const res=[];const cands=(!t||t==='Any')?THERAPISTS:[t];for(let di=0;di<5&&res.length<count;di++)for(let ti=0;ti<18&&res.length<count;ti++)for(const th of cands)if(!isConflict(th,di,ti,type)){res.push({therapist:th,dayIdx:di,timeSlot:ti});if(res.length>=count)break;}return res;}
+function slotLabel(slot){const dates=getWeekDates(),d=dates[slot.dayIdx];const[h,m]=HOURS[slot.timeSlot].split(':').map(Number);const ampm=h>=12?'pm':'am',h12=h>12?h-12:h;return`${d.label} ${d.month} ${d.date}, ${h12}:${m===0?'00':m}${ampm} — ${slot.therapist}`;}
+function getWeekDates(){const now=new Date(),day=now.getDay(),diff=day===0?-6:1-day,mon=new Date(now);mon.setDate(now.getDate()+diff+weekOffset*7);return DAYS.map((d,i)=>{const dt=new Date(mon);dt.setDate(mon.getDate()+i);return{label:d,date:dt.getDate(),month:dt.toLocaleString('default',{month:'short'})};});}
+function shiftWeek(d){weekOffset+=d;renderCalendar();}
+function selectTherapist(el,t){document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));el.classList.add('active');activeTherapist=t;renderCalendar();}
+
+function renderCalendar(){if(typeof updateWlBadge==='function')setTimeout(updateWlBadge,0);
+  const dates=getWeekDates();
+  document.getElementById('week-label').textContent=`${dates[0].month} ${dates[0].date} – ${dates[4].month} ${dates[4].date}`;
+  const grid=document.getElementById('cal-grid');
+  grid.style.gridTemplateColumns='44px '+DAYS.map(()=>'1fr').join(' ');
+  grid.innerHTML='';
+  grid.appendChild(document.createElement('div'));
+  dates.forEach(d=>{const h=document.createElement('div');h.className='day-col-header';h.innerHTML=`${d.label}<span>${d.date}</span>`;grid.appendChild(h);});
+  HOURS.forEach((time,ti)=>{
+    const tl=document.createElement('div');tl.className='time-label';tl.textContent=ti%2===0?time:'';grid.appendChild(tl);
+    DAYS.forEach((_,di)=>{
+      const cell=document.createElement('div');cell.className='cal-cell';
+      const tlist=activeTherapist==='All'?THERAPISTS:[activeTherapist];
+      const hl=highlightedSlots.find(s=>s.dayIdx===di&&s.timeSlot===ti);
+      if(hl){cell.classList.add('highlight');cell.onclick=()=>bookHighlightedSlot(hl);}
+      if(activeTherapist!=='All'&&isOutsideHours(activeTherapist,ti))cell.classList.add('outside-hours');
+      tlist.forEach(t=>{
+        const block=blocks.find(b=>(b.therapist===t||b.therapist==='All')&&b.dayIdx===di&&b.startSlot===ti);
+        if(block){const pill=document.createElement('div');pill.className=`block-pill ${block.type}`;pill.style.height=`${block.durationSlots*38-4}px`;pill.innerHTML=`<span>${block.label}</span>${editMode?`<span class="block-remove" onclick="removeBlock(event,'${t}',${di},${ti})">&#10005;</span>`:''}`;cell.appendChild(pill);cell.classList.add('blocked');}
+      });
+      appointments.filter(a=>a.dayIdx===di&&a.timeSlot===ti&&(activeTherapist==='All'||a.therapist===activeTherapist)).forEach(a=>{
+        const div=document.createElement('div');const info=APPT_TYPES[a.type];
+        div.className=`appt ${info.cls}`;div.style.height=`${(info.duration/30)*38-4}px`;
+        div.innerHTML=`<div class="appt-name">${a.name}</div><div style="opacity:.8;font-size:9px;">${a.type}</div>${a.seriesId?'<div class=\"series-dot\" title=\"Part of a recurring series\"></div>':''}`;
+        div.onclick=e=>{e.stopPropagation();if(a.patientId)openSidebar(a.patientId);};
+        cell.appendChild(div);
+      });
+      if(editMode&&!cell.classList.contains('blocked')&&!cell.classList.contains('outside-hours')&&!hl){cell.style.cursor='pointer';cell.onclick=()=>openModal(activeTherapist==='All'?'Dr. Smith':activeTherapist,di,ti);}
+      grid.appendChild(cell);
+    });
+  });
+}
+
+// Block modal
+function openModal(therapist,dayIdx,timeSlot){
+  pendingModalCtx={therapist,dayIdx,timeSlot};
+  document.getElementById('block-type').value='lunch';document.getElementById('block-therapist').value=therapist;
+  document.getElementById('custom-label-group').style.display='none';document.getElementById('custom-label').value='';
+  document.getElementById('block-recurring').checked=true;selectedDurSlots=1;
+  document.querySelectorAll('.dur-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+  const dates=getWeekDates(),d=dates[dayIdx];const[h,m]=HOURS[timeSlot].split(':').map(Number);const ampm=h>=12?'pm':'am',h12=h>12?h-12:h;
+  document.getElementById('modal-meta').textContent=`${therapist} · ${d.label} ${d.month} ${d.date} at ${h12}:${m===0?'00':m}${ampm}`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');}
+function onBlockTypeChange(){const t=document.getElementById('block-type').value;document.getElementById('custom-label-group').style.display=t==='custom'?'flex':'none';document.getElementById('block-recurring').checked=t!=='off';}
+function selectDur(btn,slots){selectedDurSlots=slots;document.querySelectorAll('.dur-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
+function saveBlock(){
+  const type=document.getElementById('block-type').value,therapist=document.getElementById('block-therapist').value,recurring=document.getElementById('block-recurring').checked,customLabel=document.getElementById('custom-label').value.trim();
+  const{dayIdx,timeSlot}=pendingModalCtx;const labelMap={lunch:'Lunch',admin:'Admin',off:'Time off',custom:customLabel||'Block'};
+  blocks.push({therapist,dayIdx,startSlot:timeSlot,durationSlots:selectedDurSlots,type,label:labelMap[type],recurring});closeModal();renderCalendar();
+}
+function removeBlock(e,therapist,dayIdx,startSlot){e.stopPropagation();const idx=blocks.findIndex(b=>(b.therapist===therapist||b.therapist==='All')&&b.dayIdx===dayIdx&&b.startSlot===startSlot);if(idx>-1){blocks.splice(idx,1);renderCalendar();}}
+document.getElementById('modal-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('modal-overlay'))closeModal();});
+
+// Call / Aria
+function findPatientByName(name){if(!name)return null;const n=name.toLowerCase().trim();return patients.find(p=>{const full=p.fullName.toLowerCase();return full.includes(n)||full.split(' ').some(pt=>pt.startsWith(n.split(' ')[0]));});}
+function getPatientAppts(id){return appointments.filter(a=>a.patientId===id);}
+function patientSnapshot(){return patients.map(p=>{const appts=getPatientAppts(p.id).map(a=>`${DAYS[a.dayIdx]} ${HOURS[a.timeSlot]} w/ ${a.therapist} (${a.type})`).join(', ');return`ID${p.id}: ${p.fullName} | ${p.phone} | ${p.email} | visits:${p.visits} | ins:${p.insurance||'unknown'} | insId:${p.insuranceId||'?'} | referral:${p.referralStatus||'not collected'} | refDr:${p.referralDr||'?'} | upcoming:${appts||'none'}`;}).join('\n');}
+function blocksSnap(){return blocks.map(b=>`${b.therapist}|${DAYS[b.dayIdx]}|slots${b.startSlot}-${b.startSlot+b.durationSlots}|${b.label}`).join('\n')||'None';}
+function hoursSnap(){return THERAPISTS.map(t=>{const[s,e]=therapistHours[t];return`${t}:${HOURS[s]}–${HOURS[Math.min(e,17)]}`;}).join(', ');}
+function showPatientBanner(p){const appts=getPatientAppts(p.id);document.getElementById('patient-banner-name').textContent=`Returning: ${p.fullName}`;const selfRef=p.referralStatus==='self-referral';document.getElementById('patient-banner-detail').textContent=`${p.visits} visits · ins: ${p.insurance||'unknown'} · referral: ${p.referralStatus||'not collected'}${selfRef?' ⚑ self-referral':''}`;document.getElementById('patient-banner').style.display='block';}
+function hidePatientBanner(){document.getElementById('patient-banner').style.display='none';}
+
+function bookHighlightedSlot(slot){
+  if(!pendingAppt.type)return;const label=slotLabel(slot);let patient=recognizedPatient;
+  if(!patient){patient={id:Date.now(),fullName:pendingAppt.fullName||'',phone:pendingAppt.phone||'',email:pendingAppt.email||'',dob:'',visits:0,insurance:pendingAppt.insurance||'',insuranceId:pendingAppt.insuranceId||'',referralStatus:pendingAppt.referralStatus||'not collected',referralDr:pendingAppt.referralDr||'',notes:'',timeline:[{type:'new',date:'Today',desc:'New patient registered'}]};patients.push(patient);}
+  else{if(pendingAppt.insurance)patient.insurance=pendingAppt.insurance;if(pendingAppt.insuranceId)patient.insuranceId=pendingAppt.insuranceId;if(pendingAppt.referralStatus)patient.referralStatus=pendingAppt.referralStatus;if(pendingAppt.referralDr)patient.referralDr=pendingAppt.referralDr;}
+  patient.visits+=1;const shortName=patient.fullName.split(' ')[0]+' '+(patient.fullName.split(' ')[1]||'')[0]+'.';
+  appointments.push({patientId:patient.id,name:shortName,type:pendingAppt.type,therapist:slot.therapist,dayIdx:slot.dayIdx,timeSlot:slot.timeSlot});
+  patient.timeline=patient.timeline||[];patient.timeline.push({type:'appt',date:'Today',desc:`${pendingAppt.type} — ${slot.therapist}`});
+  if(typeof sendIntakeFormOnBooking==='function')sendIntakeFormOnBooking(patient,pendingAppt.type);
+  highlightedSlots=[];renderCalendar();addMsg('system',`Booked: ${label}`);
+  const msg=`BOOKING_CONFIRMED:${patient.fullName}|${pendingAppt.type}|${label}`;
+  const capturedPatient=patient, capturedType=pendingAppt.type, capturedSlot=slot;
+  conversation.push({role:'user',content:msg});pendingAppt={};
+  continueCall(msg).then(()=>{
+    setTimeout(()=>openSeriesModal(capturedSlot, capturedPatient, capturedType), 1200);
+  });
+}
+
+function showSlotOptions(slots){
+  const msgs=document.getElementById('messages'),typing=document.getElementById('typing');
+  if(msgs.contains(typing))msgs.removeChild(typing);
+  const wrap=document.createElement('div');wrap.className='slot-options';
+  slots.forEach(slot=>{const btn=document.createElement('button');btn.className='slot-option-btn';const dates=getWeekDates(),d=dates[slot.dayIdx];const[h,m]=HOURS[slot.timeSlot].split(':').map(Number);const ampm=h>=12?'pm':'am',h12=h>12?h-12:h;btn.innerHTML=`<span class="slot-badge">${d.label} ${d.month} ${d.date}</span> ${h12}:${m===0?'00':m}${ampm} with ${slot.therapist}`;btn.onclick=()=>{wrap.remove();bookHighlightedSlot(slot);};wrap.appendChild(btn);});
+  const more=document.createElement('button');more.className='slot-option-btn';more.style.color='var(--text3)';more.textContent='See other times...';more.onclick=()=>{wrap.remove();addMsg('user','Any other times?');conversation.push({role:'user',content:'FIND_MORE_SLOTS'});continueCall('FIND_MORE_SLOTS');};wrap.appendChild(more);
+  msgs.appendChild(wrap);if(callActive)msgs.appendChild(typing);msgs.scrollTop=msgs.scrollHeight;
+}
+
+function showCancelOptions(appts,patient){
+  const msgs=document.getElementById('messages'),typing=document.getElementById('typing');
+  if(msgs.contains(typing))msgs.removeChild(typing);
+  const wrap=document.createElement('div');wrap.className='slot-options';
+  const lbl=document.createElement('div');lbl.style.cssText='font-size:11px;color:var(--text3);padding:2px 4px;';lbl.textContent='Which appointment to cancel?';wrap.appendChild(lbl);
+  appts.forEach(appt=>{const btn=document.createElement('button');btn.className='slot-option-btn';btn.innerHTML=`<span class="cancel-badge">Cancel</span> ${DAYS[appt.dayIdx]} ${HOURS[appt.timeSlot]} · ${appt.type} w/ ${appt.therapist}`;btn.onclick=()=>{wrap.remove();const idx=appointments.indexOf(appt),cl=`${DAYS[appt.dayIdx]} ${HOURS[appt.timeSlot]} with ${appt.therapist} (${appt.type})`;const cancelledApptCopy={type:appt.type,dayIdx:appt.dayIdx,timeSlot:appt.timeSlot,therapist:appt.therapist};appointments.splice(idx,1);patient.timeline=patient.timeline||[];patient.timeline.push({type:'cancel',date:'Today',desc:`Cancelled: ${appt.type} — ${appt.therapist}`});renderCalendar();addMsg('system',`Cancelled: ${cl}`);offerSlotToWaitlist(cancelledApptCopy);const msg=`CANCEL_CONFIRMED:${patient.fullName}|${cl}`;conversation.push({role:'user',content:msg});continueCall(msg);};wrap.appendChild(btn);});
+  msgs.appendChild(wrap);if(callActive)msgs.appendChild(typing);msgs.scrollTop=msgs.scrollHeight;
+}
+
+function startCall(){
+  if(callActive)return;callActive=true;pendingAppt={};highlightedSlots=[];conversation=[];recognizedPatient=null;hidePatientBanner();renderCalendar();
+  document.getElementById('status-dot').className='ringing';document.getElementById('status-label').textContent='Incoming call...';document.getElementById('messages').innerHTML='';addMsg('system','Call connected');
+  document.getElementById('call-btn-wrap').innerHTML=`
+    <div id="input-area">
+      <textarea id="user-input" placeholder="Type as the patient..." style="flex:1;resize:none;height:38px;min-height:38px;max-height:100px;font-size:13px;padding:8px 12px;border-radius:19px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;line-height:1.4;"></textarea>
+      <button id="send-btn" onclick="sendMsg()"><svg viewBox="0 0 24 24" width="15" height="15" fill="#fff"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+      <button id="end-btn" onclick="endCall()">End</button>
+    </div>`;
+  document.getElementById('user-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}});
+  setTimeout(()=>{document.getElementById('status-dot').className='active';document.getElementById('status-label').textContent='On call';const g="Thank you for calling Apex Physical Therapy! This is Aria. May I get your name please?";addMsg('ai',g);conversation.push({role:'assistant',content:g});},700);
+}
+
+function endCall(){
+  callActive=false;highlightedSlots=[];pendingAppt={};recognizedPatient=null;hidePatientBanner();renderCalendar();
+  document.getElementById('status-dot').className='';document.getElementById('status-dot').style.background='var(--text3)';document.getElementById('status-label').textContent='No active call';addMsg('system','Call ended');
+  document.getElementById('call-btn-wrap').innerHTML=`<button id="call-btn" onclick="startCall()"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg>Simulate incoming call</button>`;
+}
+
+function addMsg(role,text){const msgs=document.getElementById('messages'),typing=document.getElementById('typing');if(msgs.contains(typing))msgs.removeChild(typing);const d=document.createElement('div');d.className=`msg ${role}`;d.textContent=text;msgs.appendChild(d);if(callActive)msgs.appendChild(typing);msgs.scrollTop=msgs.scrollHeight;}
+function sendMsg(){const inp=document.getElementById('user-input'),text=inp.value.trim();if(!text)return;inp.value='';addMsg('user',text);conversation.push({role:'user',content:text});continueCall(text);}
+
+async function continueCall(userText){
+  const typing=document.getElementById('typing');typing.style.display='flex';document.getElementById('messages').scrollTop=99999;
+  const schedSnap=appointments.map(a=>`${DAYS[a.dayIdx]} slot${a.timeSlot}(${HOURS[a.timeSlot]})—${a.therapist}—${a.type}—pid:${a.patientId}`).join('\n');
+  const sys=`You are Aria, a warm professional AI scheduling receptionist at Apex Physical Therapy.
+
+== PATIENTS ==
+${patientSnapshot()}
+
+== SCHEDULE ==
+${schedSnap||'None.'}
+
+== THERAPIST HOURS == ${hoursSnap()}
+== BLOCKS == ${blocksSnap()}
+
+== APPOINTMENT TYPES ==
+Initial evaluation:60min | Follow-up visit:30min | Dry needling:30min | Sports rehab:45min | Post-surgical rehab:60min
+
+== THERAPISTS == Dr. Smith, Dr. Chen, Dr. Patel
+
+== BEHAVIOR ==
+1. Ask caller's name first.
+2. Look up in patient DB. If found, greet by first name warmly — do NOT re-ask for phone/email.
+3. Ask how you can help (book, cancel, reschedule).
+
+== BOOKING ==
+ALL appointment types accept either a physician referral OR a self-referral — both are treated equally.
+For new patients or those with referral "not collected" or "pending", collect:
+  a. Insurance type (Medicare, Medicaid, Private insurance, Workers' comp, Self-pay)
+  b. Insurance policy/ID number (skip if self-pay)
+  c. Only ask about referral if the patient has NOT already mentioned a physician referral:
+     - If they mention a doctor referred them: set referralStatus="on file", collect referring doctor name as referralDr
+     - If they don't mention a physician: ask "Are you coming in with a physician referral, or are you referring yourself?"
+       · If physician referral: referralStatus="on file", collect doctor name as referralDr
+       · If self-referral: referralStatus="self-referral", collect brief reason/chief complaint as referralDr field (e.g. "Lower back pain")
+For returning patients with referral "on file" or "self-referral", skip referral questions entirely.
+When ready output: BOOKING_READY:[fullName]|[phone]|[email]|[type]|[therapist]|[insurance]|[insuranceId]|[referralStatus]|[referralDr]
+
+== CANCELLING == Output: SHOW_CANCEL_OPTIONS:[patientId]
+
+FIND_MORE_SLOTS → BOOKING_READY:RESEND|RESEND|RESEND|${pendingAppt.type||''}|${pendingAppt.rawTherapist||'Any'}|RESEND|RESEND|RESEND|RESEND
+SLOTS_OFFERED → tell patient to tap a time or ask for more.
+BOOKING_CONFIRMED → confirm warmly, mention reminder text 24h before, say goodbye.
+CANCEL_CONFIRMED → acknowledge, ask if they'd like to reschedule.
+If message starts with SERIES_CONFIRMED: warmly confirm the full series details (number of visits, frequency) and say goodbye.
+If no slots are available and patient wants to be waitlisted, output on its own line: ADD_TO_WAITLIST:[fullName]|[phone]|[apptType]|[preferredTherapist]
+Then tell them they've been added and will receive a text when a slot opens.
+
+Under 3 sentences. Warm and concise.`;
+
+  try{
+    // Use local proxy if running from server.js, otherwise try direct (works in Claude.ai sandbox)
+    // Works in any browser — uses XMLHttpRequest with no preflight CORS issue
+    const res = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', 'https://api.anthropic.com/v1/messages', true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('x-api-key', API_KEY);
+      xhr.setRequestHeader('anthropic-version', '2023-06-01');
+      xhr.setRequestHeader('anthropic-dangerous-direct-browser-access', 'true');
+      xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, json: () => Promise.resolve(JSON.parse(xhr.responseText)), status: xhr.status });
+      xhr.onerror = () => reject(new Error('Network error — check your internet connection'));
+      xhr.send(JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:700,system:sys,messages:conversation}));
+    });
+    const data=await res.json();typing.style.display='none';
+    if(!res.ok || data.error){addMsg('ai',`API error: ${data.error ? data.error.message : 'Status ' + res.status + ' — check your API key'}`);return;}
+    const reply=data.content.map(b=>b.text||'').join('');
+
+    // Handle waitlist addition by Aria
+    const wlMatch=reply.match(/ADD_TO_WAITLIST:([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^\n]+)/);
+    if(wlMatch){
+      const[,wlName,wlPhone,wlType,wlTherapist]=wlMatch.map(x=>x.trim());
+      addToWaitlist(wlName,wlPhone,wlType,wlTherapist==='Any'?'':wlTherapist);
+      const vis=reply.replace(/ADD_TO_WAITLIST:[^\n]+/,'').trim();
+      if(vis){addMsg('ai',vis);conversation.push({role:'assistant',content:vis});}
+      return;
+    }
+    const cancelMatch=reply.match(/SHOW_CANCEL_OPTIONS:(\d+)/);
+    if(cancelMatch){const pid=parseInt(cancelMatch[1]),patient=patients.find(p=>p.id===pid),appts=appointments.filter(a=>a.patientId===pid);const vis=reply.replace(/SHOW_CANCEL_OPTIONS:\d+/,'').trim();if(vis){addMsg('ai',vis);conversation.push({role:'assistant',content:vis});}if(appts.length>0)showCancelOptions(appts,patient);else{const m=`I don't see any upcoming appointments for ${patient?.fullName||'you'}. Is there anything else I can help with?`;addMsg('ai',m);conversation.push({role:'assistant',content:m});}return;}
+
+    const bookMatch=reply.match(/BOOKING_READY:([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^\n]+)/);
+    if(bookMatch){
+      const[,name,phone,email,type,rawTherapist,insurance,insuranceId,referralStatus,referralDr]=bookMatch.map(x=>x?.trim());
+      if(name!=='RESEND'){const p=recognizedPatient;pendingAppt={fullName:p?p.fullName:name,phone:p?p.phone:phone,email:p?p.email:email,type,rawTherapist,insurance:insurance!=='RESEND'?insurance:pendingAppt.insurance,insuranceId:insuranceId!=='RESEND'?insuranceId:pendingAppt.insuranceId,referralStatus:referralStatus!=='RESEND'?referralStatus:pendingAppt.referralStatus,referralDr:referralDr!=='RESEND'?referralDr:pendingAppt.referralDr};}
+      const tf=(!pendingAppt.rawTherapist||pendingAppt.rawTherapist==='Any')?'Any':pendingAppt.rawTherapist;
+      const slots=findAvailableSlots(tf,pendingAppt.type,4);highlightedSlots=slots;renderCalendar();
+      const vis=reply.replace(/BOOKING_READY:[^\n]+/,'').trim();if(vis){addMsg('ai',vis);conversation.push({role:'assistant',content:vis});}
+      if(slots.length===0){const m="I'm sorry, there's no availability this week. Would you like to check next week?";addMsg('ai',m);conversation.push({role:'assistant',content:m});}
+      else{showSlotOptions(slots);const sd=slots.map(s=>slotLabel(s)).join('; ');conversation.push({role:'assistant',content:`Available: ${sd}`});conversation.push({role:'user',content:`SLOTS_OFFERED:${sd}`});await continueCall(`SLOTS_OFFERED:${sd}`);}
+      return;
+    }
+
+    if(!recognizedPatient&&conversation.length<=6){const umsgs=conversation.filter(m=>m.role==='user').map(m=>m.content).join(' ').toLowerCase();patients.forEach(p=>{if(!recognizedPatient){const[fn,ln]=(p.fullName.toLowerCase()).split(' ');if(umsgs.includes(fn)||(ln&&umsgs.includes(ln))){recognizedPatient=p;showPatientBanner(p);}}});}
+
+    addMsg('ai',reply);conversation.push({role:'assistant',content:reply});
+    if(userText.startsWith('BOOKING_CONFIRMED:')){}  // series modal opens instead
+    if(userText.startsWith('SERIES_CONFIRMED:'))setTimeout(endCall,3500);
+  }catch(e){typing.style.display='none';addMsg('ai',`Connection error: ${e.message}`);}
+}
+
+renderCalendar();
+</script>
+
+<!-- Intake Form Modal -->
+<div id="form-modal-overlay">
+  <div id="form-modal">
+    <div id="form-modal-header">
+      <div>
+        <div id="form-modal-title"></div>
+        <div id="form-modal-sub"></div>
+      </div>
+      <button id="form-modal-close" onclick="closeFormModal()">&#10005;</button>
+    </div>
+    <div id="form-modal-body"></div>
+    <div id="form-modal-footer">
+      <div id="form-progress-wrap">
+        <div id="form-progress-label"></div>
+        <div id="form-progress-bar"><div id="form-progress-fill" style="width:0%"></div></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="form-nav-btn" id="form-back-btn" onclick="formNav(-1)" style="display:none">Back</button>
+        <button class="form-nav-btn primary" id="form-next-btn" onclick="formNav(1)">Next</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recurring Series Modal -->
+<div id="series-modal-overlay">
+  <div id="series-modal">
+    <h3>Book a recurring series?</h3>
+    <p id="series-modal-desc"></p>
+    <div class="series-opts" id="series-freq-opts">
+      <div class="series-opt" onclick="selectSeriesOpt(this,'weekly')">
+        <div class="series-opt-radio"></div>
+        <div><strong>Weekly</strong> — same day &amp; time every week</div>
+      </div>
+      <div class="series-opt" onclick="selectSeriesOpt(this,'biweekly')">
+        <div class="series-opt-radio"></div>
+        <div><strong>Bi-weekly</strong> — every two weeks</div>
+      </div>
+      <div class="series-opt" onclick="selectSeriesOpt(this,'3x')">
+        <div class="series-opt-radio"></div>
+        <div><strong>3x per week</strong> — Mon, Wed, Fri at same time</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+      <label style="color:var(--text2);">Number of visits:</label>
+      <select id="series-count-sel" style="font-size:13px;padding:5px 9px;border-radius:6px;border:0.5px solid var(--border2);background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;">
+        <option value="4">4 visits</option>
+        <option value="6">6 visits</option>
+        <option value="8">8 visits</option>
+        <option value="12">12 visits</option>
+        <option value="16">16 visits</option>
+      </select>
+    </div>
+    <div id="series-preview"></div>
+    <div id="series-modal-actions">
+      <button class="series-btn" onclick="closeSeriesModal()">Skip — single visit only</button>
+      <button class="series-btn" id="series-preview-btn" onclick="previewSeries()">Preview slots</button>
+      <button class="series-btn primary" id="series-confirm-btn" style="display:none" onclick="confirmSeries()">Book series</button>
+    </div>
+  </div>
+</div>
+
+<!-- SOAP Note Modal -->
+<div id="soap-modal-overlay">
+  <div id="soap-modal">
+    <div id="soap-modal-header">
+      <div>
+        <div id="soap-modal-title">SOAP Note</div>
+        <div id="soap-modal-sub"></div>
+      </div>
+      <button id="soap-modal-close" onclick="closeSoapModal()">&#10005;</button>
+    </div>
+    <div id="soap-modal-body"></div>
+    <div id="soap-modal-footer">
+      <div class="soap-sig-wrap">
+        <div class="soap-sig-label">Therapist signature &amp; credentials</div>
+        <div class="soap-sig-row">
+          <input class="soap-sig-input" id="soap-sig-name" placeholder="Full name" style="width:180px;"/>
+          <input class="soap-sig-input" id="soap-sig-creds" placeholder="DPT, OCS..." style="width:110px;"/>
+          <input class="soap-sig-input" id="soap-sig-date" type="date" style="width:140px;"/>
+        </div>
+      </div>
+      <div class="soap-footer-btns">
+        <button class="soap-btn" onclick="saveSoapDraft()">Save draft</button>
+        <button class="soap-btn primary" id="soap-sign-btn" onclick="signSoapNote()">Sign &amp; finalize</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
